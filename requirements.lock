@@ -1,0 +1,16 @@
+# Generated from pyproject.toml in a Python 3.13 Linux container.
+# See README.md for the regeneration command.
+
+asgiref==3.12.1
+Django==5.2.18
+djangorestframework==3.17.2
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.6.0
+psycopg==3.3.6
+psycopg-binary==3.3.6
+Pygments==2.21.0
+pytest==9.1.1
+pytest-django==4.14.0
+ruff==0.17.0
+sqlparse==0.6.0
