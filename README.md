@@ -4,6 +4,105 @@ ClinicFlow is a backend project for automating financial operations in clinics.
 The intended workflow connects appointments, charges, simulated payment webhooks,
 and asynchronous reconciliation, with data isolation between clinics.
 
+## Product definition
+
+ClinicFlow will centralize the financial workflow of clinics and consulting
+practices: register patients and encounters, generate charges, receive simulated
+payment confirmations, reconcile payments, and investigate inconsistencies.
+The goal is to prevent duplicate processing, incorrect charge states, and lost
+financial events while keeping operations traceable.
+
+### Intended business workflow
+
+1. An authenticated user creates a clinic and becomes its owner.
+2. Authorized clinic users register fictional patients and their encounters.
+3. An encounter generates a charge in the `PENDING` state.
+4. A simulated payment provider sends a signed confirmation webhook.
+5. The API validates and records the event for asynchronous processing.
+6. A consumer reconciles the payment with its charge and marks it `PAID`.
+7. Duplicate delivery does not create another payment. Failed processing can be
+   retried, and unresolved discrepancies remain available for investigation.
+
+Only the completed checklist items below are implemented. The financial workflow
+describes the target product, rather than endpoints already available.
+
+### Business rules and delivery checklist
+
+Checked items represent functionality implemented and validated in this checkout.
+Unchecked items are planned work; each delivery updates the checklist.
+
+**Local foundation**
+
+- [x] Run the API and PostgreSQL with Docker Compose and persistent database storage.
+- [x] Expose liveness and database readiness endpoints.
+- [x] Execute tests against PostgreSQL and enforce lint and formatting checks.
+- [ ] Run those checks automatically in GitHub Actions.
+
+**Accounts and access**
+
+- [x] Require username, password, email, first name, and last name at registration.
+- [x] Validate password strength, hash stored passwords, and prevent client-assigned administrative privileges.
+- [x] Authenticate with Bearer tokens and revoke the current token on logout.
+- [x] Limit registration and login requests and disable caching of authentication responses.
+- [ ] Define and implement token expiration and rotation policies.
+
+**Clinics and isolation**
+
+- [x] Require a nonblank clinic name and create its owner membership in the same transaction.
+- [x] Allow a user to belong to multiple clinics, with one membership per user and clinic.
+- [x] List and retrieve only clinics linked to the authenticated user.
+- [x] Allow owners to edit clinic names; members can read clinic data.
+- [x] Prevent access to unrelated clinics, including through guessed IDs or administrative account flags.
+- [ ] Provide controlled membership invitations, role changes, and ownership management.
+- [ ] Apply clinic isolation to patients, encounters, charges, payments, and financial reports as those resources are implemented.
+
+**Patients and encounters**
+
+- [ ] Register and manage fictional patients within a clinic.
+- [ ] Record encounters and procedures linked to a patient in the same clinic.
+- [ ] Reject references that combine resources from different clinics.
+
+**Charges and payments**
+
+- [ ] Generate encounter charges with an initial `PENDING` state.
+- [ ] Store and calculate monetary values with `Decimal` and PostgreSQL numeric types.
+- [ ] Define and enforce valid charge and payment state transitions.
+- [ ] Mark a charge `PAID` only after its payment is successfully reconciled.
+- [ ] Record discrepancies for investigation instead of silently marking inconsistent payments as successful.
+- [ ] Expose clinic-scoped financial indicators.
+
+**Events and resilience**
+
+- [ ] Implement a simulated payment provider and verify webhook signatures.
+- [ ] Persist incoming events and prevent duplicate payment creation.
+- [ ] Publish events through the local Google Cloud Pub/Sub Emulator.
+- [ ] Run a separate Python consumer and make reconciliation idempotent.
+- [ ] Handle concurrent processing and out-of-order events without corrupting financial state.
+- [ ] Add retries with backoff and a dead-letter path for persistent failures.
+- [ ] Evaluate and implement a Transactional Outbox when database writes and event publication must remain consistent.
+
+**Documentation and observability**
+
+- [ ] Document request and response contracts with OpenAPI.
+- [ ] Add structured logs and correlation identifiers across API and consumer operations.
+- [ ] Document financial state rules, failure scenarios, and architectural decisions as they are implemented.
+
+### Domain outline
+
+| Entity | Responsibility |
+| --- | --- |
+| User | Account identity and authentication |
+| Clinic | Boundary for access and business data |
+| ClinicMembership | A user's role within a clinic |
+| Patient | Fictional patient registered in a clinic |
+| Encounter | A patient's attendance and associated procedures |
+| Charge | Amount due and its financial state |
+| Payment | Received payment and reconciliation result |
+| Payment event | Provider confirmation, processing status, and duplicate protection |
+
+Financial entity fields, event contracts, and policies for cancellation, refunds,
+and payment discrepancies will be specified before their implementation.
+
 ## Current scope
 
 The API includes Django REST Framework, PostgreSQL, Docker Compose, health
