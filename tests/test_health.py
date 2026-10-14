@@ -41,3 +41,14 @@ def test_health_endpoints_reject_mutations(endpoint: str) -> None:
     response = APIClient().post(reverse(endpoint), {}, format="json")
 
     assert response.status_code == 405
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("endpoint", ["core:health", "core:readiness"])
+def test_health_endpoints_ignore_invalid_authorization_header(endpoint: str) -> None:
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION="Bearer unknown-token")
+
+    response = client.get(reverse(endpoint))
+
+    assert response.status_code == 200
