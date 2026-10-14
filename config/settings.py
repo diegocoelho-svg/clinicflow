@@ -15,6 +15,8 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "rest_framework",
+    "rest_framework.authtoken",
+    "apps.accounts.apps.AccountsConfig",
     "apps.core.apps.CoreConfig",
 ]
 
@@ -59,8 +61,10 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication"
+        "apps.accounts.authentication.BearerTokenAuthentication"
     ],
+    "DEFAULT_THROTTLE_RATES": {"login": "10/min", "register": "10/min"},
+    "NUM_PROXIES": 0,
 }
 
 LANGUAGE_CODE = "en-us"

@@ -6,10 +6,11 @@ and asynchronous reconciliation, with data isolation between clinics.
 
 ## Current scope
 
-The foundation includes Django REST Framework, PostgreSQL, Docker Compose,
-liveness and readiness endpoints, Pytest, and Ruff. Business endpoints,
-authentication flows, payment integrations, the Pub/Sub emulator, and its consumer
-will be added in subsequent development steps.
+The API includes Django REST Framework, PostgreSQL, Docker Compose, health
+endpoints, user registration, Bearer token login, the authenticated user profile,
+logout, Pytest, and Ruff.
+Clinic and patient endpoints, payment integrations, the Pub/Sub emulator, and its
+consumer will be added in subsequent development steps.
 
 All patient data and payment integrations will be fictional. The project runs
 locally and does not require cloud resources or paid services.
@@ -106,6 +107,96 @@ curl -fsS http://localhost:8000/health/
 curl -fsS http://localhost:8000/health/ready/
 ```
 
+## Authentication
+
+The API uses Django's native user model and DRF's database-backed tokens, sent
+with the Bearer authorization scheme.
+
+| Endpoint | Request | Success | Access |
+| --- | --- | --- | --- |
+| `POST /api/v1/auth/register/` | JSON with `username`, `password`, `email`, `first_name`, and `last_name` | `201`, user profile JSON | Public |
+| `POST /api/v1/auth/token/` | JSON with `username` and `password` | `200 {"token":"..."}` | Public |
+| `GET /api/v1/auth/me/` | `Authorization: Bearer <token>` | `200`, user profile JSON | Authenticated |
+| `POST /api/v1/auth/logout/` | `Authorization: Bearer <token>` | `204`, empty body | Authenticated |
+
+Registration requires all five fields. Missing, null, empty, or whitespace-only
+values return 400 without creating an account. Email must be valid, username must
+be unique, and passwords must pass Django's configured strength validators.
+Duplicate username conflicts, including concurrent creation, return 400.
+
+Accounts are active ordinary users. Clients cannot assign IDs, staff or superuser
+permissions, groups, or account activation flags. Django hashes passwords; the
+response contains only `id`, `username`, `email`, `first_name`, and `last_name`.
+Registration does not issue a token; sign in separately to obtain one. Email is
+required but is not a unique identifier in the current native user model.
+
+Login accepts JSON and returns 400 for missing or invalid credentials, with a
+generic error for an unknown user, incorrect password, or inactive account.
+Protected endpoints return 401 with `WWW-Authenticate: Bearer` for missing,
+invalid, revoked, or inactive-user tokens. The previous `Token` prefix is not
+accepted. Session cookies alone do not authenticate API requests. Login and
+registration ignore stale authorization headers.
+
+Each user has one opaque token; it is not a JWT. Repeated login reuses it, and
+logout revokes it for all clients using that token. A subsequent login creates a
+new token. Tokens have no automatic expiration in this local MVP. Authentication
+responses include `Cache-Control: no-store`.
+
+Login and registration each allow 10 requests per minute per client IP, then
+return 429 with `Retry-After`. The app ignores client-supplied forwarded IP
+headers for these limits. Limits include successful and failed requests, use
+Django's local cache, and reset when the API process restarts. They are best-effort
+limits for this single-process environment. A production setup would need HTTPS,
+an appropriate token lifecycle, and shared rate limiting.
+
+### Test with Insomnia
+
+Use `http://localhost:8000` as the base URL, or the port configured in `API_PORT`.
+
+1. Send `POST /api/v1/auth/register/` with a JSON body:
+
+   ```json
+   {
+     "username": "alex_demo",
+     "password": "Choose-a-strong-local-password-942!",
+     "email": "alex@example.test",
+     "first_name": "Alex",
+     "last_name": "Demo"
+   }
+   ```
+
+   Choose your own local password. A successful request returns 201 and the user
+   profile.
+2. Send `POST /api/v1/auth/token/` with the same username and password.
+3. Copy the returned token. On `GET /api/v1/auth/me/`, select **Auth → Bearer
+   Token** and paste only the token value.
+4. Send `POST /api/v1/auth/logout/` with the same Bearer authentication. It
+   returns 204; using that token on `/me/` now returns 401.
+
+For administrative access only, Django's `createsuperuser` command remains
+available:
+
+```sh
+docker compose exec api python manage.py createsuperuser
+```
+
+PowerShell login example, using the account registered above:
+
+```powershell
+$baseUrl = "http://localhost:8000"
+$credential = Get-Credential -Message "Enter your registered username and password"
+$loginBody = @{
+    username = $credential.UserName
+    password = $credential.GetNetworkCredential().Password
+} | ConvertTo-Json
+$login = Invoke-RestMethod "$baseUrl/api/v1/auth/token/" -Method Post -ContentType "application/json" -Body $loginBody
+$headers = @{ Authorization = "Bearer $($login.token)" }
+Invoke-RestMethod "$baseUrl/api/v1/auth/me/" -Headers $headers
+Invoke-WebRequest "$baseUrl/api/v1/auth/logout/" -Method Post -Headers $headers -UseBasicParsing
+```
+
+Set `$baseUrl` to match `API_PORT` when using a different local port.
+
 ## Quality checks
 
 ```sh
@@ -120,6 +211,10 @@ Pytest creates a separate PostgreSQL database named `test_clinicflow` by default
 and removes it after the run. The local PostgreSQL container user can create this
 database. Tests cover readiness against PostgreSQL, database outage handling,
 public liveness without database access, and rejection of mutation requests.
+Authentication tests cover required registration fields, password validation and
+hashing, duplicate usernames, privilege assignment protection, login validation,
+protected profile access, token revocation, inactive users, profile field exposure,
+and registration and login rate limiting.
 
 To refresh the dependency lock, run this in a clean Python 3.13 container, then
 rebuild and repeat the quality checks. The resolver needs network access.
@@ -155,6 +250,7 @@ configuration will require a separate review.
 ## Repository layout
 
 ```text
+apps/accounts/              Registration, Bearer login, user profile, and logout
 apps/core/                  Health endpoints
 config/                     Settings, root URLs, WSGI and ASGI entry points
 scripts/lock_dependencies.py Dependency lock regeneration
