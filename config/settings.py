@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "apps.accounts.apps.AccountsConfig",
     "apps.clinics.apps.ClinicsConfig",
     "apps.patients.apps.PatientsConfig",
+    "apps.encounters.apps.EncountersConfig",
     "apps.core.apps.CoreConfig",
 ]
 

@@ -55,13 +55,16 @@ Unchecked items are planned work; each delivery updates the checklist.
 - [x] Prevent access to unrelated clinics, including through guessed IDs or administrative account flags.
 - [ ] Provide controlled membership invitations, role changes, and ownership management.
 - [x] Apply clinic isolation to patients, including requests under a different clinic URL.
-- [ ] Apply clinic isolation to encounters, charges, payments, and financial reports as those resources are implemented.
+- [x] Apply clinic isolation to encounters, including requests under a different clinic URL.
+- [ ] Apply clinic isolation to charges, payments, and financial reports as those resources are implemented.
 
 **Patients and encounters**
 
 - [x] Register and manage fictional patients within a clinic, with a required name and birth date.
-- [ ] Record encounters and procedures linked to a patient in the same clinic.
-- [ ] Reject references that combine resources from different clinics.
+- [x] Record completed encounters linked to a patient in the same clinic.
+- [ ] Record procedures and prices associated with encounters.
+- [x] Reject encounter patient assignments that combine resources from different clinics.
+- [ ] Reject cross-clinic references in charges, payments, and other future resources.
 
 **Charges and payments**
 
@@ -110,8 +113,8 @@ The API includes Django REST Framework, PostgreSQL, Docker Compose, health
 endpoints, user registration, Bearer token login, the authenticated user profile,
 logout, clinic creation/listing/retrieval/name updates, owner/member permissions,
 clinic access isolation, clinic-scoped patient creation/listing/retrieval/updates,
-Pytest, and Ruff.
-Encounters, membership management, payment integrations, the Pub/Sub
+completed encounter creation/listing/retrieval/updates, Pytest, and Ruff.
+Procedures, charges, membership management, payment integrations, the Pub/Sub
 emulator, and its consumer will be added in subsequent development steps.
 
 All patient data and payment integrations will be fictional. The project runs
@@ -403,8 +406,8 @@ invalid Bearer authentication returns 401.
 The database enforces a nonblank name and a non-null birth date. Patient references
 use Django's `PROTECT` deletion policy: the ORM blocks deletion of a clinic while
 patients reference it. PUT and DELETE are not exposed and return 405. Patient
-deletion, encounters, medical records, search, and pagination are outside this
-delivery.
+deletion, medical records, search, and pagination are outside this delivery.
+Encounter endpoints are documented in the following section.
 
 ### Test with Insomnia
 
@@ -433,6 +436,96 @@ Member permissions and membership revocation are covered by database-backed
 tests; membership assignment endpoints are not yet available.
 
 
+## Encounters
+
+All encounter endpoints require Bearer authentication and a current membership in
+the URL's clinic. Both `OWNER` and `MEMBER` can register, list, retrieve, and
+partially update completed encounters.
+
+| Endpoint | Request | Success |
+| --- | --- | --- |
+| `POST /api/v1/clinics/{clinic_id}/encounters/` | JSON with `patient`, `performed_at`, and `description` | `201`, encounter JSON |
+| `GET /api/v1/clinics/{clinic_id}/encounters/` | Bearer token | `200`, array of encounters in that clinic |
+| `GET /api/v1/clinics/{clinic_id}/encounters/{id}/` | Bearer token | `200`, encounter JSON |
+| `PATCH /api/v1/clinics/{clinic_id}/encounters/{id}/` | JSON with `performed_at` and/or `description` | `200`, updated encounter JSON |
+
+Creation requires all three input fields. `patient` is the numeric ID of a patient
+in the same clinic. A nonexistent patient or a patient from another clinic returns
+400, including when the caller belongs to both clinics. The serializer restricts
+its patient lookup to the clinic authorized by the ViewSet.
+
+`performed_at` represents an already completed encounter and must not be in the
+future. Timestamps accept ISO 8601 input, including timezone offsets, and are
+returned in UTC. `description` is trimmed text and cannot be null, empty, or only
+whitespace. PATCH can omit fields to retain their values but cannot clear required
+fields. Validation failures return 400 without modifying the record.
+
+The patient is fixed after creation. Supplying a different `patient` on PATCH
+returns 400, even if the replacement belongs to the same clinic. Resubmitting the
+same patient ID is allowed. The clinic is determined by the URL and cannot be
+changed by the body. Client-supplied `clinic_id` and `patient_id` fields do not
+override these rules. Identity, clinic, and timestamps are read-only.
+
+Responses contain `id`, `clinic`, `patient`, `performed_at`, `description`,
+`created_at`, and `updated_at`. Lists contain only encounters in the URL's clinic,
+ordered by ID. An unrelated or nonexistent clinic returns 404, including for list
+and create. An encounter requested under another clinic also returns 404, even
+when the caller belongs to both clinics. Staff and superuser flags do not bypass
+membership checks. Query parameters and clinic headers do not override the URL.
+Removing a membership revokes access on the next request. Missing or invalid
+Bearer authentication returns 401.
+
+| Database column | PostgreSQL type | Nullable |
+| --- | --- | --- |
+| `id` | `BIGINT`, auto-generated primary key | No |
+| `clinic_id` | `BIGINT`, indexed foreign key | No |
+| `patient_id` | `BIGINT`, indexed foreign key | No |
+| `performed_at` | `TIMESTAMP WITH TIME ZONE` | No |
+| `description` | `TEXT` | No |
+| `created_at` | `TIMESTAMP WITH TIME ZONE` | No |
+| `updated_at` | `TIMESTAMP WITH TIME ZONE` | No |
+
+The migration enforces non-null fields, foreign keys, and a nonblank description.
+Patient and clinic references use Django's `PROTECT` deletion policy. The ORM
+blocks deletion of a referenced patient or clinic. Future-time validation,
+same-clinic patient selection, and fixed-patient updates are API rules; direct ORM
+writes do not automatically run serializer validation. The database does not have
+a constraint comparing the clinic IDs of two different tables.
+
+A patient can have multiple encounters. PUT and DELETE return 405. Scheduling,
+procedure pricing, charges, financial states, search, and pagination are outside
+this delivery. Encounter edit rules will be revisited when charges depend on
+encounter data.
+
+### Test with Insomnia
+
+1. Register, sign in, create a clinic, and register a patient using the preceding
+   examples. Use the port configured in `API_PORT` and the actual IDs returned.
+2. Send `POST /api/v1/clinics/{clinic_id}/encounters/` with **Auth → Bearer Token**:
+
+   ```json
+   {
+     "patient": 1,
+     "performed_at": "2020-01-01T10:00:00-03:00",
+     "description": "Routine consultation"
+   }
+   ```
+
+   Replace `1` with your patient's ID. Expect 201, with the timestamp normalized
+   to `2020-01-01T13:00:00Z`.
+3. GET the list and `/api/v1/clinics/{clinic_id}/encounters/{id}/`.
+4. PATCH the detail URL with `{"description":"Corrected consultation"}`. The
+   patient and performed time remain unchanged.
+5. Omit `patient`, send an empty description, or use a future performed time in a
+   creation request; each returns 400. A patient from another clinic also returns
+   400.
+6. PATCH with a different patient ID from the same clinic; expect 400.
+7. Access the encounter using an unrelated account or under another clinic URL;
+   expect 404.
+
+Member permissions and membership revocation are covered by database-backed
+tests; membership assignment endpoints are not yet available.
+
 ## Quality checks
 
 ```sh
@@ -455,7 +548,9 @@ atomic creation, ownership assignment, cross-clinic isolation, role permissions,
 membership revocation, unsupported methods, and database constraints. Patient
 tests cover required birth dates, contact validation, owner/member operations,
 URL clinic isolation, immutable clinic assignment, membership revocation, and
-protected clinic deletion.
+protected clinic deletion. Encounter tests cover same-clinic patient selection,
+fixed patient assignment, performed time validation, owner/member operations,
+clinic isolation, membership revocation, and protected patient deletion.
 
 To refresh the dependency lock, run this in a clean Python 3.13 container, then
 rebuild and repeat the quality checks. The resolver needs network access.
@@ -494,6 +589,7 @@ configuration will require a separate review.
 apps/accounts/              Registration, Bearer login, user profile, and logout
 apps/clinics/               Clinics, memberships, migrations, and access rules
 apps/core/                  Health endpoints
+apps/encounters/            Completed encounters, migrations, and patient validation
 apps/patients/              Clinic-scoped patients, migrations, and access rules
 config/                     Settings, root URLs, WSGI and ASGI entry points
 scripts/lock_dependencies.py Dependency lock regeneration
