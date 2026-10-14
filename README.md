@@ -8,9 +8,10 @@ and asynchronous reconciliation, with data isolation between clinics.
 
 The API includes Django REST Framework, PostgreSQL, Docker Compose, health
 endpoints, user registration, Bearer token login, the authenticated user profile,
-logout, Pytest, and Ruff.
-Clinic and patient endpoints, payment integrations, the Pub/Sub emulator, and its
-consumer will be added in subsequent development steps.
+logout, clinic creation/listing/retrieval/name updates, owner/member permissions,
+clinic access isolation, Pytest, and Ruff.
+Patient endpoints, membership management, payment integrations, the Pub/Sub
+emulator, and its consumer will be added in subsequent development steps.
 
 All patient data and payment integrations will be fictional. The project runs
 locally and does not require cloud resources or paid services.
@@ -197,6 +198,55 @@ Invoke-WebRequest "$baseUrl/api/v1/auth/logout/" -Method Post -Headers $headers 
 
 Set `$baseUrl` to match `API_PORT` when using a different local port.
 
+## Clinics
+
+All clinic endpoints require Bearer authentication.
+
+| Endpoint | Request | Success | Access |
+| --- | --- | --- | --- |
+| `POST /api/v1/clinics/` | JSON with `name` | `201`, clinic JSON | Authenticated user; becomes owner |
+| `GET /api/v1/clinics/` | Bearer token | `200`, array of clinics | Only the user's memberships |
+| `GET /api/v1/clinics/{id}/` | Bearer token | `200`, clinic JSON | Owner or member |
+| `PATCH /api/v1/clinics/{id}/` | JSON with `name` | `200`, updated clinic JSON | Owner |
+
+`name` is required at creation, trimmed, nonblank, and limited to 255 characters.
+Missing, null, blank, whitespace-only, or oversized names return 400. Clinic names
+are not globally unique. Responses expose only `id`, `name`, `created_at`, and
+`updated_at`; identity and timestamps are read-only.
+
+Clinic creation and its `OWNER` membership run in a single transaction. User IDs,
+roles, and memberships supplied in the clinic body cannot change ownership. The
+database enforces a nonblank name, unique user/clinic memberships, and valid roles.
+Deleting a user through the Django ORM is protected while memberships reference
+that user.
+
+Owners and members can list and retrieve their clinics. Members cannot edit them
+and receive 403 on PATCH. A clinic without a membership for the caller returns 404,
+including for staff or superuser accounts. Missing or invalid authentication
+returns 401. Memberships are checked from the database on each request; removing
+a membership removes clinic access without revoking the user's authentication
+token. Query parameters and client-supplied clinic headers do not grant access.
+
+PUT and DELETE are not exposed and return 405. This step creates owner memberships
+automatically; invitations, member assignment, role changes, and clinic deletion
+policies require subsequent deliveries. The `MEMBER` role is supported by the
+model and access rules and tested using database fixtures.
+
+### Test with Insomnia
+
+1. Register and sign in using the authentication endpoints above.
+2. Send `POST /api/v1/clinics/` with **Auth → Bearer Token** and this JSON:
+
+   ```json
+   {"name": "Demo Clinic"}
+   ```
+
+3. Copy the returned `id`. List `/api/v1/clinics/`, then retrieve
+   `/api/v1/clinics/{id}/` with the same token.
+4. PATCH that clinic with `{"name":"Updated Demo Clinic"}`.
+5. Register and sign in as a different user. That user's list is initially empty,
+   and GET or PATCH for the first user's clinic returns 404.
+
 ## Quality checks
 
 ```sh
@@ -214,7 +264,9 @@ public liveness without database access, and rejection of mutation requests.
 Authentication tests cover required registration fields, password validation and
 hashing, duplicate usernames, privilege assignment protection, login validation,
 protected profile access, token revocation, inactive users, profile field exposure,
-and registration and login rate limiting.
+and registration and login rate limiting. Clinic tests cover required names,
+atomic creation, ownership assignment, cross-clinic isolation, role permissions,
+membership revocation, unsupported methods, and database constraints.
 
 To refresh the dependency lock, run this in a clean Python 3.13 container, then
 rebuild and repeat the quality checks. The resolver needs network access.
@@ -251,6 +303,7 @@ configuration will require a separate review.
 
 ```text
 apps/accounts/              Registration, Bearer login, user profile, and logout
+apps/clinics/               Clinics, memberships, migrations, and access rules
 apps/core/                  Health endpoints
 config/                     Settings, root URLs, WSGI and ASGI entry points
 scripts/lock_dependencies.py Dependency lock regeneration
