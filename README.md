@@ -4,13 +4,113 @@ ClinicFlow is a backend project for automating financial operations in clinics.
 The intended workflow connects appointments, charges, simulated payment webhooks,
 and asynchronous reconciliation, with data isolation between clinics.
 
+## Product definition
+
+ClinicFlow will centralize the financial workflow of clinics and consulting
+practices: register patients and encounters, generate charges, receive simulated
+payment confirmations, reconcile payments, and investigate inconsistencies.
+The goal is to prevent duplicate processing, incorrect charge states, and lost
+financial events while keeping operations traceable.
+
+### Intended business workflow
+
+1. An authenticated user creates a clinic and becomes its owner.
+2. Authorized clinic users register fictional patients and their encounters.
+3. An encounter generates a charge in the `PENDING` state.
+4. A simulated payment provider sends a signed confirmation webhook.
+5. The API validates and records the event for asynchronous processing.
+6. A consumer reconciles the payment with its charge and marks it `PAID`.
+7. Duplicate delivery does not create another payment. Failed processing can be
+   retried, and unresolved discrepancies remain available for investigation.
+
+Only the completed checklist items below are implemented. The financial workflow
+describes the target product, rather than endpoints already available.
+
+### Business rules and delivery checklist
+
+Checked items represent functionality implemented and validated in this checkout.
+Unchecked items are planned work; each delivery updates the checklist.
+
+**Local foundation**
+
+- [x] Run the API and PostgreSQL with Docker Compose and persistent database storage.
+- [x] Expose liveness and database readiness endpoints.
+- [x] Execute tests against PostgreSQL and enforce lint and formatting checks.
+- [ ] Run those checks automatically in GitHub Actions.
+
+**Accounts and access**
+
+- [x] Require username, password, email, first name, and last name at registration.
+- [x] Validate password strength, hash stored passwords, and prevent client-assigned administrative privileges.
+- [x] Authenticate with Bearer tokens and revoke the current token on logout.
+- [x] Limit registration and login requests and disable caching of authentication responses.
+- [ ] Define and implement token expiration and rotation policies.
+
+**Clinics and isolation**
+
+- [x] Require a nonblank clinic name and create its owner membership in the same transaction.
+- [x] Allow a user to belong to multiple clinics, with one membership per user and clinic.
+- [x] List and retrieve only clinics linked to the authenticated user.
+- [x] Allow owners to edit clinic names; members can read clinic data.
+- [x] Prevent access to unrelated clinics, including through guessed IDs or administrative account flags.
+- [ ] Provide controlled membership invitations, role changes, and ownership management.
+- [ ] Apply clinic isolation to patients, encounters, charges, payments, and financial reports as those resources are implemented.
+
+**Patients and encounters**
+
+- [ ] Register and manage fictional patients within a clinic.
+- [ ] Record encounters and procedures linked to a patient in the same clinic.
+- [ ] Reject references that combine resources from different clinics.
+
+**Charges and payments**
+
+- [ ] Generate encounter charges with an initial `PENDING` state.
+- [ ] Store and calculate monetary values with `Decimal` and PostgreSQL numeric types.
+- [ ] Define and enforce valid charge and payment state transitions.
+- [ ] Mark a charge `PAID` only after its payment is successfully reconciled.
+- [ ] Record discrepancies for investigation instead of silently marking inconsistent payments as successful.
+- [ ] Expose clinic-scoped financial indicators.
+
+**Events and resilience**
+
+- [ ] Implement a simulated payment provider and verify webhook signatures.
+- [ ] Persist incoming events and prevent duplicate payment creation.
+- [ ] Publish events through the local Google Cloud Pub/Sub Emulator.
+- [ ] Run a separate Python consumer and make reconciliation idempotent.
+- [ ] Handle concurrent processing and out-of-order events without corrupting financial state.
+- [ ] Add retries with backoff and a dead-letter path for persistent failures.
+- [ ] Evaluate and implement a Transactional Outbox when database writes and event publication must remain consistent.
+
+**Documentation and observability**
+
+- [ ] Document request and response contracts with OpenAPI.
+- [ ] Add structured logs and correlation identifiers across API and consumer operations.
+- [ ] Document financial state rules, failure scenarios, and architectural decisions as they are implemented.
+
+### Domain outline
+
+| Entity | Responsibility |
+| --- | --- |
+| User | Account identity and authentication |
+| Clinic | Boundary for access and business data |
+| ClinicMembership | A user's role within a clinic |
+| Patient | Fictional patient registered in a clinic |
+| Encounter | A patient's attendance and associated procedures |
+| Charge | Amount due and its financial state |
+| Payment | Received payment and reconciliation result |
+| Payment event | Provider confirmation, processing status, and duplicate protection |
+
+Financial entity fields, event contracts, and policies for cancellation, refunds,
+and payment discrepancies will be specified before their implementation.
+
 ## Current scope
 
 The API includes Django REST Framework, PostgreSQL, Docker Compose, health
 endpoints, user registration, Bearer token login, the authenticated user profile,
-logout, Pytest, and Ruff.
-Clinic and patient endpoints, payment integrations, the Pub/Sub emulator, and its
-consumer will be added in subsequent development steps.
+logout, clinic creation/listing/retrieval/name updates, owner/member permissions,
+clinic access isolation, Pytest, and Ruff.
+Patient endpoints, membership management, payment integrations, the Pub/Sub
+emulator, and its consumer will be added in subsequent development steps.
 
 All patient data and payment integrations will be fictional. The project runs
 locally and does not require cloud resources or paid services.
@@ -197,6 +297,55 @@ Invoke-WebRequest "$baseUrl/api/v1/auth/logout/" -Method Post -Headers $headers 
 
 Set `$baseUrl` to match `API_PORT` when using a different local port.
 
+## Clinics
+
+All clinic endpoints require Bearer authentication.
+
+| Endpoint | Request | Success | Access |
+| --- | --- | --- | --- |
+| `POST /api/v1/clinics/` | JSON with `name` | `201`, clinic JSON | Authenticated user; becomes owner |
+| `GET /api/v1/clinics/` | Bearer token | `200`, array of clinics | Only the user's memberships |
+| `GET /api/v1/clinics/{id}/` | Bearer token | `200`, clinic JSON | Owner or member |
+| `PATCH /api/v1/clinics/{id}/` | JSON with `name` | `200`, updated clinic JSON | Owner |
+
+`name` is required at creation, trimmed, nonblank, and limited to 255 characters.
+Missing, null, blank, whitespace-only, or oversized names return 400. Clinic names
+are not globally unique. Responses expose only `id`, `name`, `created_at`, and
+`updated_at`; identity and timestamps are read-only.
+
+Clinic creation and its `OWNER` membership run in a single transaction. User IDs,
+roles, and memberships supplied in the clinic body cannot change ownership. The
+database enforces a nonblank name, unique user/clinic memberships, and valid roles.
+Deleting a user through the Django ORM is protected while memberships reference
+that user.
+
+Owners and members can list and retrieve their clinics. Members cannot edit them
+and receive 403 on PATCH. A clinic without a membership for the caller returns 404,
+including for staff or superuser accounts. Missing or invalid authentication
+returns 401. Memberships are checked from the database on each request; removing
+a membership removes clinic access without revoking the user's authentication
+token. Query parameters and client-supplied clinic headers do not grant access.
+
+PUT and DELETE are not exposed and return 405. This step creates owner memberships
+automatically; invitations, member assignment, role changes, and clinic deletion
+policies require subsequent deliveries. The `MEMBER` role is supported by the
+model and access rules and tested using database fixtures.
+
+### Test with Insomnia
+
+1. Register and sign in using the authentication endpoints above.
+2. Send `POST /api/v1/clinics/` with **Auth → Bearer Token** and this JSON:
+
+   ```json
+   {"name": "Demo Clinic"}
+   ```
+
+3. Copy the returned `id`. List `/api/v1/clinics/`, then retrieve
+   `/api/v1/clinics/{id}/` with the same token.
+4. PATCH that clinic with `{"name":"Updated Demo Clinic"}`.
+5. Register and sign in as a different user. That user's list is initially empty,
+   and GET or PATCH for the first user's clinic returns 404.
+
 ## Quality checks
 
 ```sh
@@ -214,7 +363,9 @@ public liveness without database access, and rejection of mutation requests.
 Authentication tests cover required registration fields, password validation and
 hashing, duplicate usernames, privilege assignment protection, login validation,
 protected profile access, token revocation, inactive users, profile field exposure,
-and registration and login rate limiting.
+and registration and login rate limiting. Clinic tests cover required names,
+atomic creation, ownership assignment, cross-clinic isolation, role permissions,
+membership revocation, unsupported methods, and database constraints.
 
 To refresh the dependency lock, run this in a clean Python 3.13 container, then
 rebuild and repeat the quality checks. The resolver needs network access.
@@ -251,6 +402,7 @@ configuration will require a separate review.
 
 ```text
 apps/accounts/              Registration, Bearer login, user profile, and logout
+apps/clinics/               Clinics, memberships, migrations, and access rules
 apps/core/                  Health endpoints
 config/                     Settings, root URLs, WSGI and ASGI entry points
 scripts/lock_dependencies.py Dependency lock regeneration
