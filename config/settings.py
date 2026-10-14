@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "apps.accounts.apps.AccountsConfig",
     "apps.clinics.apps.ClinicsConfig",
+    "apps.patients.apps.PatientsConfig",
     "apps.core.apps.CoreConfig",
 ]
 

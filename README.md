@@ -54,11 +54,12 @@ Unchecked items are planned work; each delivery updates the checklist.
 - [x] Allow owners to edit clinic names; members can read clinic data.
 - [x] Prevent access to unrelated clinics, including through guessed IDs or administrative account flags.
 - [ ] Provide controlled membership invitations, role changes, and ownership management.
-- [ ] Apply clinic isolation to patients, encounters, charges, payments, and financial reports as those resources are implemented.
+- [x] Apply clinic isolation to patients, including requests under a different clinic URL.
+- [ ] Apply clinic isolation to encounters, charges, payments, and financial reports as those resources are implemented.
 
 **Patients and encounters**
 
-- [ ] Register and manage fictional patients within a clinic.
+- [x] Register and manage fictional patients within a clinic, with a required name and birth date.
 - [ ] Record encounters and procedures linked to a patient in the same clinic.
 - [ ] Reject references that combine resources from different clinics.
 
@@ -108,8 +109,9 @@ and payment discrepancies will be specified before their implementation.
 The API includes Django REST Framework, PostgreSQL, Docker Compose, health
 endpoints, user registration, Bearer token login, the authenticated user profile,
 logout, clinic creation/listing/retrieval/name updates, owner/member permissions,
-clinic access isolation, Pytest, and Ruff.
-Patient endpoints, membership management, payment integrations, the Pub/Sub
+clinic access isolation, clinic-scoped patient creation/listing/retrieval/updates,
+Pytest, and Ruff.
+Encounters, membership management, payment integrations, the Pub/Sub
 emulator, and its consumer will be added in subsequent development steps.
 
 All patient data and payment integrations will be fictional. The project runs
@@ -346,6 +348,91 @@ model and access rules and tested using database fixtures.
 5. Register and sign in as a different user. That user's list is initially empty,
    and GET or PATCH for the first user's clinic returns 404.
 
+## Patients
+
+All patient endpoints require Bearer authentication and a membership in the clinic
+identified by the URL. Both `OWNER` and `MEMBER` can create, list, retrieve, and
+edit patients. Editing the clinic itself remains restricted to owners.
+
+| Endpoint | Request | Success |
+| --- | --- | --- |
+| `POST /api/v1/clinics/{clinic_id}/patients/` | JSON with `full_name`, `birth_date`, and optional contacts | `201`, patient JSON |
+| `GET /api/v1/clinics/{clinic_id}/patients/` | Bearer token | `200`, array of patients in that clinic |
+| `GET /api/v1/clinics/{clinic_id}/patients/{id}/` | Bearer token | `200`, patient JSON |
+| `PATCH /api/v1/clinics/{clinic_id}/patients/{id}/` | JSON with fields to update | `200`, updated patient JSON |
+
+`full_name` and `birth_date` are required at creation. Names are trimmed, cannot
+be blank, and are limited to 255 characters. Birth dates use `YYYY-MM-DD`, cannot
+be null or empty, and cannot be later than today's UTC date. PATCH can omit either
+required field to retain its value, but cannot clear it. Invalid input returns
+400 without modifying the patient. The API validates future dates; direct ORM
+writes do not automatically execute serializer validation.
+
+Email and phone are optional and stored as empty strings when omitted. Email must
+have a valid format when supplied, with a maximum length of 254 characters. Phone
+is text with up to 32 characters, without a regional formatting rule. Either
+contact can be cleared with `""`; null is not accepted. Names and contacts are not
+unique, and the same fictional person can have independent records in different
+clinics.
+
+Responses expose `id`, `clinic`, `full_name`, `birth_date`, `email`, `phone`,
+`created_at`, and `updated_at`. IDs are auto-incrementing `BIGINT` values, and
+`clinic` is the clinic's numeric ID. Identity, clinic, and timestamps are
+read-only. Values supplied for `clinic`, `clinic_id`, identity, or timestamps
+cannot change the URL's clinic assignment or transfer a patient.
+
+The API resolves the caller's clinic membership before validating patient input.
+An unrelated or nonexistent clinic returns 404 for every patient operation,
+including list and create. A patient requested under another clinic also returns
+404, even if the caller belongs to both clinics. Staff and superuser flags do not
+bypass membership checks. Removing a membership revokes patient access on the next
+request. Query parameters and clinic headers do not override the URL. Missing or
+invalid Bearer authentication returns 401.
+
+| Database column | PostgreSQL type | Nullable |
+| --- | --- | --- |
+| `id` | `BIGINT`, auto-generated primary key | No |
+| `clinic_id` | `BIGINT`, indexed foreign key | No |
+| `full_name` | `VARCHAR(255)` | No |
+| `birth_date` | `DATE` | No |
+| `email` | `VARCHAR(254)` | No |
+| `phone` | `VARCHAR(32)` | No |
+| `created_at` | `TIMESTAMP WITH TIME ZONE` | No |
+| `updated_at` | `TIMESTAMP WITH TIME ZONE` | No |
+
+The database enforces a nonblank name and a non-null birth date. Patient references
+use Django's `PROTECT` deletion policy: the ORM blocks deletion of a clinic while
+patients reference it. PUT and DELETE are not exposed and return 405. Patient
+deletion, encounters, medical records, search, and pagination are outside this
+delivery.
+
+### Test with Insomnia
+
+1. Register, sign in, and create a clinic using the preceding examples. Copy its
+   actual ID and use the port configured in `API_PORT`.
+2. Send `POST /api/v1/clinics/{clinic_id}/patients/` with **Auth → Bearer Token**:
+
+   ```json
+   {
+     "full_name": "Taylor Patient",
+     "birth_date": "1995-06-15",
+     "email": "taylor@example.test",
+     "phone": "+55 (11) 99999-0000"
+   }
+   ```
+
+3. Expect 201 and copy the patient's ID. GET the list and the patient's detail URL.
+4. PATCH that detail URL with `{"phone":"(11) 1234-5678"}`. The birth date remains
+   unchanged. PATCH with `{"birth_date":null}` returns 400.
+5. Try creating a patient without `birth_date`, then with a future date; expect 400.
+6. Register another account and clinic. Accessing the first clinic's patient URLs
+   with the second account returns 404. Requesting the patient under the second
+   clinic's URL also returns 404.
+
+Member permissions and membership revocation are covered by database-backed
+tests; membership assignment endpoints are not yet available.
+
+
 ## Quality checks
 
 ```sh
@@ -365,7 +452,10 @@ hashing, duplicate usernames, privilege assignment protection, login validation,
 protected profile access, token revocation, inactive users, profile field exposure,
 and registration and login rate limiting. Clinic tests cover required names,
 atomic creation, ownership assignment, cross-clinic isolation, role permissions,
-membership revocation, unsupported methods, and database constraints.
+membership revocation, unsupported methods, and database constraints. Patient
+tests cover required birth dates, contact validation, owner/member operations,
+URL clinic isolation, immutable clinic assignment, membership revocation, and
+protected clinic deletion.
 
 To refresh the dependency lock, run this in a clean Python 3.13 container, then
 rebuild and repeat the quality checks. The resolver needs network access.
@@ -404,6 +494,7 @@ configuration will require a separate review.
 apps/accounts/              Registration, Bearer login, user profile, and logout
 apps/clinics/               Clinics, memberships, migrations, and access rules
 apps/core/                  Health endpoints
+apps/patients/              Clinic-scoped patients, migrations, and access rules
 config/                     Settings, root URLs, WSGI and ASGI entry points
 scripts/lock_dependencies.py Dependency lock regeneration
 tests/                      Automated tests
