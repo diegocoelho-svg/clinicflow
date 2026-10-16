@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "apps.clinics.apps.ClinicsConfig",
     "apps.patients.apps.PatientsConfig",
     "apps.encounters.apps.EncountersConfig",
+    "apps.procedures.apps.ProceduresConfig",
     "apps.core.apps.CoreConfig",
 ]
 
