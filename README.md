@@ -62,14 +62,16 @@ Unchecked items are planned work; each delivery updates the checklist.
 
 - [x] Register and manage fictional patients within a clinic, with a required name and birth date.
 - [x] Record completed encounters linked to a patient in the same clinic.
-- [ ] Record procedures and prices associated with encounters.
+- [x] Manage a clinic procedure catalog with nonnegative BRL prices and activation status.
+- [ ] Link procedures to encounters with quantities and historical price snapshots.
 - [x] Reject encounter patient assignments that combine resources from different clinics.
 - [ ] Reject cross-clinic references in charges, payments, and other future resources.
 
 **Charges and payments**
 
 - [ ] Generate encounter charges with an initial `PENDING` state.
-- [ ] Store and calculate monetary values with `Decimal` and PostgreSQL numeric types.
+- [x] Store procedure prices with `Decimal` and PostgreSQL numeric types.
+- [ ] Calculate encounter and charge totals with `Decimal` and PostgreSQL numeric types.
 - [ ] Define and enforce valid charge and payment state transitions.
 - [ ] Mark a charge `PAID` only after its payment is successfully reconciled.
 - [ ] Record discrepancies for investigation instead of silently marking inconsistent payments as successful.
@@ -100,6 +102,7 @@ Unchecked items are planned work; each delivery updates the checklist.
 | ClinicMembership | A user's role within a clinic |
 | Patient | Fictional patient registered in a clinic |
 | Encounter | A patient's attendance and associated procedures |
+| Procedure | Clinic catalog entry with a BRL unit price and activation status |
 | Charge | Amount due and its financial state |
 | Payment | Received payment and reconciliation result |
 | Payment event | Provider confirmation, processing status, and duplicate protection |
@@ -113,8 +116,9 @@ The API includes Django REST Framework, PostgreSQL, Docker Compose, health
 endpoints, user registration, Bearer token login, the authenticated user profile,
 logout, clinic creation/listing/retrieval/name updates, owner/member permissions,
 clinic access isolation, clinic-scoped patient creation/listing/retrieval/updates,
-completed encounter creation/listing/retrieval/updates, Pytest, and Ruff.
-Procedures, charges, membership management, payment integrations, the Pub/Sub
+completed encounter creation/listing/retrieval/updates, a clinic procedure catalog
+with BRL prices, owner-only catalog management, Pytest, and Ruff.
+Encounter items, charges, membership management, payment integrations, the Pub/Sub
 emulator, and its consumer will be added in subsequent development steps.
 
 All patient data and payment integrations will be fictional. The project runs
@@ -526,6 +530,87 @@ encounter data.
 Member permissions and membership revocation are covered by database-backed
 tests; membership assignment endpoints are not yet available.
 
+## Procedures
+
+The procedure catalog belongs to a clinic and requires Bearer authentication.
+`OWNER` can create and partially update procedures; `MEMBER` can only list and
+retrieve them. Both roles can read active and inactive entries. The full catalog
+remains visible so deactivated procedures can be inspected and reactivated.
+
+| Endpoint | Request | Success | Access |
+| --- | --- | --- | --- |
+| `POST /api/v1/clinics/{clinic_id}/procedures/` | JSON with `name`, `unit_price`, and optional `is_active` | `201`, procedure JSON | Owner |
+| `GET /api/v1/clinics/{clinic_id}/procedures/` | Bearer token | `200`, array of procedures | Owner or member |
+| `GET /api/v1/clinics/{clinic_id}/procedures/{id}/` | Bearer token | `200`, procedure JSON | Owner or member |
+| `PATCH /api/v1/clinics/{clinic_id}/procedures/{id}/` | JSON with fields to change | `200`, updated procedure JSON | Owner |
+
+`name` is required, trimmed, nonblank, and limited to 255 characters. Names are
+not unique; procedures are identified by their IDs. `unit_price` is required and
+always represents BRL. Currency selection is not an input. Send monetary amounts
+as decimal strings such as `"125.50"`; responses use strings with two decimal
+places. The application stores amounts as Python `Decimal` and PostgreSQL
+`NUMERIC(12,2)`, with at most ten integer digits and two fractional digits. Extra
+fractional digits, non-finite values, negative amounts, and values exceeding
+`9999999999.99` return 400. Amounts are validated without silently rounding them.
+
+Zero is valid and represents a free procedure. Discounts will be modeled
+separately when procedures are linked to encounters and charges. A future 100%
+discount will preserve the original price rather than overwrite the catalog.
+
+`is_active` defaults to true and can be set to false or true by an owner.
+Deactivation retains the procedure and its ID. PATCH can omit fields to retain
+their values, but cannot clear required fields. Responses expose `id`, `clinic`,
+`name`, `unit_price`, `is_active`, `created_at`, and `updated_at`. ID, clinic, and
+timestamps are read-only. The clinic is assigned from the URL; body values for
+`clinic` or `clinic_id` cannot transfer an entry.
+
+An unrelated or nonexistent clinic returns 404 for every operation. A procedure
+requested under another clinic also returns 404 when the caller is an owner of
+both clinics. Members attempting to create or update in their clinic receive
+403, including when the body is invalid. Authentication is checked first; missing
+or invalid Bearer tokens return 401. Administrative flags and clinic headers do
+not bypass membership checks. Membership revocation removes access on the next
+request; the request's cached membership is not shared across requests.
+
+| Database column | PostgreSQL type | Nullable |
+| --- | --- | --- |
+| `id` | `BIGINT`, auto-generated primary key | No |
+| `clinic_id` | `BIGINT`, indexed foreign key | No |
+| `name` | `VARCHAR(255)` | No |
+| `unit_price` | `NUMERIC(12,2)` | No |
+| `is_active` | `BOOLEAN` | No |
+| `created_at` | `TIMESTAMP WITH TIME ZONE` | No |
+| `updated_at` | `TIMESTAMP WITH TIME ZONE` | No |
+
+The migration enforces a nonblank name and a finite price between zero and 9999999999.99, including protection against direct SQL writes of NaN. Django's `PROTECT`
+policy prevents deleting a clinic through the ORM while procedures reference it.
+PUT and DELETE return 405. This delivery provides the catalog; encounter items,
+price snapshots, discounts, charges, search, and pagination are subsequent work.
+
+### Test with Insomnia
+
+1. Register, sign in, and create a clinic using the preceding examples. Use the
+   port configured in `API_PORT` and the actual clinic ID returned.
+2. As the owner, send `POST /api/v1/clinics/{clinic_id}/procedures/` with
+   **Auth → Bearer Token**:
+
+   ```json
+   {
+     "name": "Routine consultation",
+     "unit_price": "125.50"
+   }
+   ```
+
+3. Expect 201 with `unit_price: "125.50"` and `is_active: true`. GET the list and
+   `/api/v1/clinics/{clinic_id}/procedures/{id}/`.
+4. PATCH the detail URL with `{"unit_price":"0.00"}`; zero is accepted. A
+   negative price or `"1.001"` returns 400 without modifying the procedure.
+5. PATCH with `{"is_active":false}`, then GET the list and detail to confirm the
+   entry remains. PATCH with `{"is_active":true}` reactivates it.
+6. Access with an unrelated account; expect 404. Members can read but receive
+   403 on POST or PATCH. Membership assignment is exercised by database-backed
+   tests because member-management endpoints are not available yet.
+
 ## Quality checks
 
 ```sh
@@ -550,7 +635,9 @@ tests cover required birth dates, contact validation, owner/member operations,
 URL clinic isolation, immutable clinic assignment, membership revocation, and
 protected clinic deletion. Encounter tests cover same-clinic patient selection,
 fixed patient assignment, performed time validation, owner/member operations,
-clinic isolation, membership revocation, and protected patient deletion.
+clinic isolation, membership revocation, and protected patient deletion. Procedure
+tests cover exact decimal prices, free procedures, negative-price rejection,
+owner/member permissions, activation changes, clinic isolation, and database constraints.
 
 To refresh the dependency lock, run this in a clean Python 3.13 container, then
 rebuild and repeat the quality checks. The resolver needs network access.
@@ -591,6 +678,7 @@ apps/clinics/               Clinics, memberships, migrations, and access rules
 apps/core/                  Health endpoints
 apps/encounters/            Completed encounters, migrations, and patient validation
 apps/patients/              Clinic-scoped patients, migrations, and access rules
+apps/procedures/            BRL procedure catalog, migrations, and owner permissions
 config/                     Settings, root URLs, WSGI and ASGI entry points
 scripts/lock_dependencies.py Dependency lock regeneration
 tests/                      Automated tests
