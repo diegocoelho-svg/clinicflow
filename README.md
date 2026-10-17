@@ -63,7 +63,7 @@ Unchecked items are planned work; each delivery updates the checklist.
 - [x] Register and manage fictional patients within a clinic, with a required name and birth date.
 - [x] Record completed encounters linked to a patient in the same clinic.
 - [x] Manage a clinic procedure catalog with nonnegative BRL prices and activation status.
-- [ ] Link procedures to encounters with quantities and historical price snapshots.
+- [x] Link procedures to encounters with positive quantities, unique procedure items, and historical name/price snapshots.
 - [x] Reject encounter patient assignments that combine resources from different clinics.
 - [ ] Reject cross-clinic references in charges, payments, and other future resources.
 
@@ -71,7 +71,8 @@ Unchecked items are planned work; each delivery updates the checklist.
 
 - [ ] Generate encounter charges with an initial `PENDING` state.
 - [x] Store procedure prices with `Decimal` and PostgreSQL numeric types.
-- [ ] Calculate encounter and charge totals with `Decimal` and PostgreSQL numeric types.
+- [x] Calculate encounter item totals with `Decimal` using the stored unit price.
+- [ ] Calculate complete encounter and charge totals with `Decimal` and PostgreSQL numeric types.
 - [ ] Define and enforce valid charge and payment state transitions.
 - [ ] Mark a charge `PAID` only after its payment is successfully reconciled.
 - [ ] Record discrepancies for investigation instead of silently marking inconsistent payments as successful.
@@ -103,6 +104,7 @@ Unchecked items are planned work; each delivery updates the checklist.
 | Patient | Fictional patient registered in a clinic |
 | Encounter | A patient's attendance and associated procedures |
 | Procedure | Clinic catalog entry with a BRL unit price and activation status |
+| EncounterItem | Procedure reference, quantity, historical name and unit price, and calculated item total |
 | Charge | Amount due and its financial state |
 | Payment | Received payment and reconciliation result |
 | Payment event | Provider confirmation, processing status, and duplicate protection |
@@ -117,8 +119,9 @@ endpoints, user registration, Bearer token login, the authenticated user profile
 logout, clinic creation/listing/retrieval/name updates, owner/member permissions,
 clinic access isolation, clinic-scoped patient creation/listing/retrieval/updates,
 completed encounter creation/listing/retrieval/updates, a clinic procedure catalog
-with BRL prices, owner-only catalog management, Pytest, and Ruff.
-Encounter items, charges, membership management, payment integrations, the Pub/Sub
+with BRL prices, owner-only catalog management, encounter items with historical
+prices and quantities, Pytest, and Ruff.
+Charges, membership management, payment integrations, the Pub/Sub
 emulator, and its consumer will be added in subsequent development steps.
 
 All patient data and payment integrations will be fictional. The project runs
@@ -496,9 +499,9 @@ same-clinic patient selection, and fixed-patient updates are API rules; direct O
 writes do not automatically run serializer validation. The database does not have
 a constraint comparing the clinic IDs of two different tables.
 
-A patient can have multiple encounters. PUT and DELETE return 405. Scheduling,
-procedure pricing, charges, financial states, search, and pagination are outside
-this delivery. Encounter edit rules will be revisited when charges depend on
+A patient can have multiple encounters. PUT and DELETE on encounters return 405.
+Encounter items are managed through the nested endpoints documented below.
+Scheduling, charges, financial states, search, and pagination remain planned. Encounter edit rules will be revisited when charges depend on
 encounter data.
 
 ### Test with Insomnia
@@ -584,8 +587,8 @@ request; the request's cached membership is not shared across requests.
 
 The migration enforces a nonblank name and a finite price between zero and 9999999999.99, including protection against direct SQL writes of NaN. Django's `PROTECT`
 policy prevents deleting a clinic through the ORM while procedures reference it.
-PUT and DELETE return 405. This delivery provides the catalog; encounter items,
-price snapshots, discounts, charges, search, and pagination are subsequent work.
+PUT and DELETE on catalog procedures return 405. The catalog supplies encounter
+items documented below. Discounts, charges, search, and pagination remain planned.
 
 ### Test with Insomnia
 
@@ -610,6 +613,105 @@ price snapshots, discounts, charges, search, and pagination are subsequent work.
 6. Access with an unrelated account; expect 404. Members can read but receive
    403 on POST or PATCH. Membership assignment is exercised by database-backed
    tests because member-management endpoints are not available yet.
+
+## Encounter items
+
+Encounter items record the procedures used in an encounter, their quantities, and
+the catalog name and unit price captured when each item is created. Both `OWNER`
+and `MEMBER` can create, list, retrieve, update quantities, and remove items in a
+clinic to which they belong. All prices represent BRL.
+
+| Endpoint | Request | Success |
+| --- | --- | --- |
+| `POST /api/v1/clinics/{clinic_id}/encounters/{encounter_id}/items/` | JSON with `procedure` and optional `quantity` | `201`, item JSON |
+| `GET /api/v1/clinics/{clinic_id}/encounters/{encounter_id}/items/` | Bearer token | `200`, array of that encounter's items |
+| `GET /api/v1/clinics/{clinic_id}/encounters/{encounter_id}/items/{id}/` | Bearer token | `200`, item JSON |
+| `PATCH /api/v1/clinics/{clinic_id}/encounters/{encounter_id}/items/{id}/` | JSON with `quantity` | `200`, updated item JSON |
+| `DELETE /api/v1/clinics/{clinic_id}/encounters/{encounter_id}/items/{id}/` | Bearer token | `204`, empty body |
+
+`procedure` is required and must identify an active procedure in the encounter's
+clinic. Missing, invalid, inactive, or foreign-clinic procedures return 400.
+`quantity` defaults to 1 and must be an integer between 1 and 2147483647. Zero,
+negative, null, fractional, or oversized quantities return 400. A procedure may
+appear only once per encounter; duplicate creation returns 400. Use quantity to
+record repeated units, or use the same procedure in a different encounter.
+
+The server copies `procedure_name` and `unit_price` from the catalog. Request
+values for those fields cannot set the price or overwrite the name. Item creation
+uses `transaction.atomic()` and `select_for_update()` to recheck the current
+procedure and copy its values under a row lock. The database enforces unique
+encounter/procedure pairs; a concurrent duplicate conflict is returned as 400.
+Unrelated database integrity errors are not misreported as duplicates.
+
+Changing or deactivating the catalog entry does not modify existing snapshots.
+The item can still be read, have its quantity adjusted, or be removed after the
+procedure becomes inactive. Its procedure reference is fixed: PATCH with a
+different procedure returns 400. Resubmitting the same ID is allowed, including
+after catalog deactivation. Read-only body fields cannot transfer the item to
+another encounter or clinic.
+
+Responses contain `id`, `encounter`, `procedure`, `procedure_name`, `quantity`,
+`unit_price`, `total`, `created_at`, and `updated_at`. Unit price and total are
+decimal strings with two fractional digits. `total` is computed with Python
+`Decimal` as quantity times the stored unit price; it is not a database column.
+Zero-price procedures produce zero totals. The total serializer accommodates
+22 digits to represent the full product of supported quantities and prices.
+
+Removing an item returns 204; subsequent retrieval returns 404. If its procedure
+is active, it can then be added again, producing a new ID and a fresh snapshot
+of the current catalog values. Invalid PATCH requests leave the item unchanged.
+PUT returns 405.
+
+Both the clinic and encounter in the URL are checked before input validation.
+An unrelated clinic, an encounter under another clinic, or an item under another
+encounter returns 404, including when the caller belongs to both clinics. Missing
+or invalid Bearer authentication returns 401. Administrative flags, query
+parameters, and clinic headers do not bypass these rules. Removing a membership
+revokes access on the next request without revoking the authentication token.
+
+| Database column | PostgreSQL type | Nullable |
+| --- | --- | --- |
+| `id` | `BIGINT`, auto-generated primary key | No |
+| `encounter_id` | `BIGINT`, indexed foreign key | No |
+| `procedure_id` | `BIGINT`, indexed foreign key | No |
+| `procedure_name` | `VARCHAR(255)` | No |
+| `quantity` | `INTEGER`, positive constraint, default 1 in Django | No |
+| `unit_price` | `NUMERIC(12,2)` | No |
+| `created_at` | `TIMESTAMP WITH TIME ZONE` | No |
+| `updated_at` | `TIMESTAMP WITH TIME ZONE` | No |
+
+Database constraints enforce a positive quantity, a nonblank name snapshot, a
+finite nonnegative price, and uniqueness per encounter/procedure. Django's
+`PROTECT` policy blocks ORM deletion of referenced encounters and procedures.
+The item's clinic is derived from its encounter. Same-clinic selection and
+snapshot copying are API rules; direct ORM writes do not automatically execute
+serializer validation. Charge generation, discounts, complete encounter totals,
+and restrictions after billing will be specified in subsequent deliveries.
+
+### Test with Insomnia
+
+1. Register and sign in, then create a clinic, patient, encounter, and active
+   catalog procedure. Use `API_PORT` and the actual returned IDs.
+2. POST the items collection URL with **Auth → Bearer Token**:
+
+   ```json
+   {
+     "procedure": 1,
+     "quantity": 2
+   }
+   ```
+
+   Replace `1` with the procedure ID. A procedure priced at `"125.50"` returns
+   `unit_price: "125.50"` and `total: "251.00"`.
+3. GET the list and detail, then PATCH the item with `{"quantity":3}`. The total
+   becomes `"376.50"`; the stored name and unit price remain the same.
+4. As the owner, change the catalog name, price, and active flag. GET the item
+   again: its original name and unit price remain unchanged.
+5. Try quantity zero, a different procedure on PATCH, and a duplicate POST;
+   expect 400. A procedure from another clinic also returns 400.
+6. DELETE the item; expect 204. Retrieving that ID now returns 404. Re-adding an
+   active procedure captures its current catalog values.
+7. An unrelated user or an incorrect clinic/encounter URL returns 404.
 
 ## Quality checks
 
@@ -638,6 +740,9 @@ fixed patient assignment, performed time validation, owner/member operations,
 clinic isolation, membership revocation, and protected patient deletion. Procedure
 tests cover exact decimal prices, free procedures, negative-price rejection,
 owner/member permissions, activation changes, clinic isolation, and database constraints.
+Encounter item tests cover stored price/name snapshots, exact totals, positive
+quantities, removal, nested access isolation, catalog revalidation, database
+constraints, and concurrent duplicate requests.
 
 To refresh the dependency lock, run this in a clean Python 3.13 container, then
 rebuild and repeat the quality checks. The resolver needs network access.
@@ -676,7 +781,7 @@ configuration will require a separate review.
 apps/accounts/              Registration, Bearer login, user profile, and logout
 apps/clinics/               Clinics, memberships, migrations, and access rules
 apps/core/                  Health endpoints
-apps/encounters/            Completed encounters, migrations, and patient validation
+apps/encounters/            Completed encounters, procedure items, snapshots, and access rules
 apps/patients/              Clinic-scoped patients, migrations, and access rules
 apps/procedures/            BRL procedure catalog, migrations, and owner permissions
 config/                     Settings, root URLs, WSGI and ASGI entry points
