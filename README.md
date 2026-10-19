@@ -36,7 +36,8 @@ Unchecked items are planned work; each delivery updates the checklist.
 - [x] Run the API and PostgreSQL with Docker Compose and persistent database storage.
 - [x] Expose liveness and database readiness endpoints.
 - [x] Execute tests against PostgreSQL and enforce lint and formatting checks.
-- [ ] Run those checks automatically in GitHub Actions.
+- [x] Run those checks automatically in GitHub Actions.
+- [x] Provide optional Discord notifications for PR events and CI results.
 
 **Accounts and access**
 
@@ -120,7 +121,7 @@ logout, clinic creation/listing/retrieval/name updates, owner/member permissions
 clinic access isolation, clinic-scoped patient creation/listing/retrieval/updates,
 completed encounter creation/listing/retrieval/updates, a clinic procedure catalog
 with BRL prices, owner-only catalog management, encounter items with historical
-prices and quantities, Pytest, and Ruff.
+prices and quantities, Pytest, Ruff, and GitHub Actions.
 Charges, membership management, payment integrations, the Pub/Sub
 emulator, and its consumer will be added in subsequent development steps.
 
@@ -713,6 +714,94 @@ and restrictions after billing will be specified in subsequent deliveries.
    active procedure captures its current catalog values.
 7. An unrelated user or an incorrect clinic/encounter URL returns 404.
 
+## Continuous integration
+
+The [CI workflow](.github/workflows/ci.yml) runs on pull requests targeting `main`,
+pushes to `main`, and manual dispatches. It builds the existing Docker image and
+starts the API and PostgreSQL through the same `compose.yaml` used locally. The
+startup command applies migrations to a fresh database; Compose waits for both
+services to become healthy before running the checks.
+
+The `Backend checks` job runs Django system checks, migration consistency,
+Ruff lint and formatting checks, the PostgreSQL-backed Pytest suite, and
+`python -m pip check`. A failed command fails the job. Container logs are shown
+on failure, and a final cleanup step always attempts to remove that run's
+containers, network, and database volume.
+
+Each run has a unique Compose project name and disposable development-only
+credentials. It does not need a committed `.env`, application secrets, or a
+payment provider. The workflow token has read-only repository contents access,
+checkout does not retain credentials, and the checkout action is pinned to a
+verified commit. New runs cancel older runs for the same workflow and Git ref;
+the job has a 20-minute timeout.
+
+To validate on GitHub, open a PR targeting `main` and inspect **Checks**, or open
+**Actions > CI** after a push to `main`. Once the workflow is present on the
+default branch, **Run workflow** also starts a manual run. Making this check
+mandatory for merging is a separate repository ruleset or branch-protection
+setting; adding the workflow does not change repository policies.
+
+References: [workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
+and [checkout action](https://github.com/actions/checkout).
+
+### Discord notifications
+
+The separate [Discord notifications workflow](.github/workflows/discord.yml)
+sends selected repository events through an incoming Discord webhook. It reports
+notifications separately from the `CI` workflow, so a Discord outage does not
+change the result of the backend checks.
+
+| Event | Notification |
+| --- | --- |
+| PR targeting `main` is opened or reopened | PR number, title, author, branches and link |
+| Draft PR becomes ready for review | Review-ready status and PR link |
+| PR is merged or closed | Merge/closure status, author and PR link |
+| `CI` fails, times out or needs action | Result, branch, commit, attempt and run link, including fork PR failures |
+| `CI` succeeds on this repository's `main` after a push or manual run | Confirmation that the main branch passed |
+| Manual notification workflow run | Connection-test message |
+
+Cancelled, skipped and neutral CI runs are ignored. Successful PR runs and
+ordinary PR edits/commits do not send messages. Messages are in Portuguese and
+disable all user, role and everyone mentions. PR bodies, logs and artifacts are
+not sent. Metadata is escaped and bounded before JSON serialization.
+
+Setup:
+
+1. Create an incoming webhook for the intended Discord text channel.
+2. In this GitHub repository, open **Settings > Secrets and variables > Actions**
+   and add a repository secret named **`DISCORD_WEBHOOK_URL`** containing that URL.
+   Keep the URL out of source, `.env.example`, PR descriptions and chat messages.
+3. Merge the workflows into the default branch. These notification events use
+   the default-branch workflow; they will not notify the initial opening of the
+   PR that first introduces this integration.
+4. Open **Actions > Discord notifications > Run workflow** and confirm the test
+   message arrives. Missing secrets produce an explicit skip message in Actions;
+   they do not fail the CI or send any request.
+
+The sender accepts HTTPS `discord.com` webhook URLs, including an optional
+`thread_id` query for an existing thread. It requests `wait=true` to confirm
+delivery, uses a 10-second timeout and refuses redirects. Failed deliveries mark
+only the notification workflow as failed. HTTP response bodies, exception text
+and the secret URL are never printed. POSTs are not automatically retried because
+an uncertain response may already have produced a message.
+
+PR metadata is handled with `pull_request_target`, and CI results with
+`workflow_run`. The job has read-only repository permissions and checks out only
+this repository's default branch with a pinned action. It never executes PR-head
+code or consumes PR artifacts, caches, or interpolated shell commands. This lets
+fork events be reported without exposing the webhook to their code. The Python
+sender uses the standard library and does not require a Discord bot account.
+
+Unit tests cover event selection, fork failures, payload bounds, mention
+suppression, endpoint restrictions, HTTP delivery construction and secret-safe
+failure handling without contacting Discord. A real delivery can be verified
+only after the secret is configured and the workflow is on the default branch.
+
+References: [GitHub workflow events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows),
+[Actions secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
+and [Discord webhooks](https://docs.discord.com/developers/resources/webhook).
+
+
 ## Quality checks
 
 ```sh
@@ -778,6 +867,8 @@ configuration will require a separate review.
 ## Repository layout
 
 ```text
+.github/workflows/ci.yml     Automated backend checks with Docker Compose
+.github/workflows/discord.yml PR and CI notifications through a secret webhook
 apps/accounts/              Registration, Bearer login, user profile, and logout
 apps/clinics/               Clinics, memberships, migrations, and access rules
 apps/core/                  Health endpoints
@@ -786,6 +877,7 @@ apps/patients/              Clinic-scoped patients, migrations, and access rules
 apps/procedures/            BRL procedure catalog, migrations, and owner permissions
 config/                     Settings, root URLs, WSGI and ASGI entry points
 scripts/lock_dependencies.py Dependency lock regeneration
+scripts/notify_discord.py    Selected GitHub event delivery to Discord
 tests/                      Automated tests
 compose.yaml                API and PostgreSQL services
 Dockerfile                  Local development image
