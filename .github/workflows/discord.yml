@@ -1,0 +1,33 @@
+name: Discord notifications
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, ready_for_review, closed]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Notify Discord
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      # Always use trusted default-branch code, including for fork PRs and manual runs.
+      # Never check out the PR head, download its artifacts, or execute its code here.
+      - name: Check out trusted notification code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Send event notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python3 scripts/notify_discord.py
