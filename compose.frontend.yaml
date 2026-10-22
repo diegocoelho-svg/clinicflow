@@ -4,6 +4,8 @@ services:
   api:
     build:
       context: ${CLINICFLOW_API_CONTEXT:-.}
+    environment:
+      SIMULATED_PAYMENT_WEBHOOK_SECRET: ${SIMULATED_PAYMENT_WEBHOOK_SECRET:-}
     ports: !override
       - "127.0.0.1:8008:8000"
 
