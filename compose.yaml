@@ -22,13 +22,14 @@ services:
       - sh
       - -c
       - python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8000 --noreload
-    environment:
+    environment: &api-environment
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
       POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      SIMULATED_PAYMENT_WEBHOOK_SECRET: ${SIMULATED_PAYMENT_WEBHOOK_SECRET:-}
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
     ports:
@@ -46,6 +47,16 @@ services:
       timeout: 10s
       retries: 6
       start_period: 20s
+
+  payments-worker:
+    profiles: ["payments"]
+    build: .
+    command: ["python", "manage.py", "reconcile_payments", "--watch"]
+    environment: *api-environment
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: on-failure
 
 volumes:
   postgres_data:
