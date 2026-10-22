@@ -177,6 +177,25 @@ describe('billing through the application routes', () => {
     ).toHaveTextContent('Consulta');
   });
 
+  it('keeps paid items locked without offering cancellation or suggesting it as a correction', async () => {
+    const api = backend();
+    const { ui } = await openBilling();
+    await ui.click(await screen.findByRole('button', { name: 'Emitir cobrança' }));
+    await screen.findByText(
+      'Emissão da cobrança #30 confirmada. Veja a situação atual no histórico.',
+    );
+    api.charges[0].status = 'PAID';
+    await ui.click(screen.getByRole('button', { name: 'Atualizar atendimento' }));
+    await screen.findByText(
+      'Esta cobrança está paga. Os itens e valores do atendimento estão preservados.',
+    );
+    const panel = within(screen.getByRole('dialog'));
+    expect(panel.getByRole('button', { name: 'Editar itens' })).toBeDisabled();
+    expect(panel.queryByRole('button', { name: 'Cancelar cobrança' })).not.toBeInTheDocument();
+    expect(panel.queryByRole('button', { name: 'Emitir cobrança' })).not.toBeInTheDocument();
+    expect(panel.queryByText(/precisa cancelar a cobrança primeiro/)).not.toBeInTheDocument();
+  });
+
   it('reuses an uncertain issuance key after navigating to the charge list and back', async () => {
     const api = backend({ loseFirstResponse: true });
     const { router, ui } = await openBilling();

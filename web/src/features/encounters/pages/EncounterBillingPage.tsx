@@ -129,7 +129,9 @@ function EncounterBilling({ id }: { id: number }) {
                 <p className="muted">
                   {uncertain
                     ? 'Confirme a emissão pendente antes de alterar os itens.'
-                    : 'Uma cobrança ativa preserva estes itens. Para corrigir, um proprietário precisa cancelar a cobrança primeiro.'}
+                    : active?.status === 'PAID'
+                      ? 'Esta cobrança está paga. Os itens e valores do atendimento estão preservados.'
+                      : 'Uma cobrança ativa preserva estes itens. Para corrigir, um proprietário precisa cancelar a cobrança primeiro.'}
                 </p>
               )}
               {state.data.items.length ? (

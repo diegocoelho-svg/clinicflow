@@ -1,3 +1,21 @@
+# Paid charge guidance — 2026-10-22
+
+The simulated-payment backend was exercised through 30 real HTTP assertions
+and 597 PostgreSQL-backed tests. Orca's existing encounter list displayed
+fictional encounters #9 and #10 under the paid filter, at BRL 46.90 and BRL 23.45.
+
+The paid encounter panel still used generic cancellation advice for locked
+items. It now explains that a paid charge preserves its items and values.
+A route-level regression covers the transition from pending to paid on refresh:
+items stay locked, cancellation/reissuance controls stay absent, and the panel
+does not suggest cancelling a paid charge.
+
+Final frontend validation: TypeScript/production build, Prettier and **56 tests
+in 4 files passed**, exit 0, in 37.02s. Earlier counts below remain historical.
+Frontend CI now runs formatting, build and tests automatically for the PR.
+
+---
+
 # Orca browser workflow validation — 2026-10-21
 
 The current preview was tested through Orca's embedded browser using the
