@@ -1,51 +1,20 @@
-import { Link, useParams } from 'react-router';
-import { Notice } from '../../../shared/ui/Notice';
+import { Link } from 'react-router';
 import { ClinicDetails } from '../components/ClinicDetails';
-import { useClinic } from '../hooks/useClinic';
+import { useActiveClinic } from '../hooks/useActiveClinic';
 
 export function ClinicWorkspacePage() {
-  const { clinicId = '' } = useParams();
-  const { state, retry } = useClinic(clinicId);
+  const clinic = useActiveClinic();
   return (
-    <section
-      className={`panel selected-panel ${state.status === 'success' ? 'has-selection' : ''}`}
-      aria-labelledby="selected-heading"
-      aria-busy={state.status === 'loading'}
-    >
-      <div className="panel-heading">
-        <span className="eyebrow">ESPAÇO DA CLÍNICA</span>
-        {state.status === 'success' && (
-          <span className="selected-badge">
-            <span className="small-dot" /> Selecionada
-          </span>
-        )}
+    <div className="selected-panel has-selection" aria-labelledby="selected-heading">
+      <ClinicDetails clinic={clinic} />
+      <div className="clinic-entry-actions">
+        <Link className="button primary" to={'/clinicas/' + clinic.id + '/atendimentos'}>
+          Ver atendimentos
+        </Link>
+        <Link className="button secondary" to={'/clinicas/' + clinic.id + '/cobrancas'}>
+          Ver cobranças
+        </Link>
       </div>
-      {state.status === 'loading' ? (
-        <div className="workspace-empty" role="status">
-          <span className="spinner" />
-          <h2 id="selected-heading" tabIndex={-1} data-route-heading>
-            Abrindo sua clínica…
-          </h2>
-          <p>Confirmando seu acesso ao espaço selecionado.</p>
-        </div>
-      ) : state.status === 'error' ? (
-        <div className="workspace-empty">
-          <h2 id="selected-heading" tabIndex={-1} data-route-heading>
-            Não foi possível abrir esta clínica
-          </h2>
-          <Notice>{state.message}</Notice>
-          <div className="workspace-actions">
-            <button className="button secondary" onClick={retry}>
-              Tentar abrir novamente
-            </button>
-            <Link className="text-button" to="/clinicas">
-              Voltar às clínicas
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <ClinicDetails clinic={state.clinic} />
-      )}
-    </section>
+    </div>
   );
 }

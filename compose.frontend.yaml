@@ -2,6 +2,8 @@ name: clinicflow-frontend
 
 services:
   api:
+    build:
+      context: ${CLINICFLOW_API_CONTEXT:-.}
     ports: !override
       - "127.0.0.1:8008:8000"
 

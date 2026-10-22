@@ -498,9 +498,13 @@ fieldset {
   margin-left: 226px;
 }
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   min-height: 88px;
   padding: 20px 42px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
@@ -508,21 +512,50 @@ fieldset {
   border-bottom: 1px solid #e1e6dd;
 }
 .breadcrumb {
+  min-width: 0;
+  flex: 1 1 240px;
+  max-width: 100%;
   font-size: 0.8rem;
   color: #687b70;
+}
+.breadcrumb ol {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
-.breadcrumb > span {
-  color: #b9c5b7;
+.breadcrumb li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
-.breadcrumb strong {
-  font-weight: 500;
+.breadcrumb li + li::before {
+  content: '/';
+  color: #9bab97;
+}
+.breadcrumb a,
+.breadcrumb [aria-current='page'] {
+  overflow-wrap: anywhere;
+}
+.breadcrumb a {
+  color: #346553;
+  text-underline-offset: 3px;
+}
+.breadcrumb a:hover {
+  color: #173f39;
+}
+.breadcrumb [aria-current='page'] {
+  font-weight: 600;
   color: #254c3e;
 }
 .account {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
+  max-width: 100%;
   gap: 11px;
 }
 .avatar {
@@ -1120,7 +1153,8 @@ fieldset {
     gap: 15px;
   }
   .breadcrumb {
-    display: none;
+    flex-basis: 100%;
+    font-size: 0.74rem;
   }
   .account {
     width: 100%;
@@ -1174,6 +1208,57 @@ fieldset {
   }
   .field-row .field label {
     font-size: 0.77rem;
+  }
+}
+@media (min-width: 681px) and (max-height: 800px) {
+  .auth-story {
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+  .story-copy {
+    margin-top: clamp(20px, 6dvh, 48px);
+  }
+  .care-art {
+    min-height: 140px;
+  }
+  .story-footer {
+    margin-top: 16px;
+  }
+  .auth-content {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+  .auth-form-wrap {
+    padding: clamp(0px, calc(8dvh - 48px), 24px) 0;
+  }
+}
+@media (max-width: 680px) {
+  .auth-story {
+    padding: 20px 24px;
+  }
+  .story-copy {
+    margin-top: 24px;
+  }
+}
+@media (max-width: 680px) and (max-height: 740px) {
+  .auth-layout:has(.session-note) .auth-story {
+    display: none;
+  }
+  .auth-layout:has(.session-note) .auth-content {
+    min-height: 100dvh;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  .auth-layout:has(.session-note) .auth-form-wrap {
+    padding: 8px 0 12px;
+  }
+  .auth-layout:has(.session-note) .auth-form-wrap > .muted {
+    margin-bottom: 16px;
+  }
+  .session-note {
+    margin-top: 16px;
+    padding-top: 12px;
+    margin-bottom: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {

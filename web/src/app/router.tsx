@@ -6,6 +6,13 @@ import { RegisterPage } from '../features/auth/pages/RegisterPage';
 import { ClinicsLayout } from '../features/clinics/layouts/ClinicsLayout';
 import { ClinicIndexPage } from '../features/clinics/pages/ClinicIndexPage';
 import { ClinicWorkspacePage } from '../features/clinics/pages/ClinicWorkspacePage';
+import { ClinicOperationsLayout } from '../features/clinics/layouts/ClinicOperationsLayout';
+import { EncounterIndexPage } from '../features/encounters/pages/EncounterIndexPage';
+import { EncounterBillingPage } from '../features/encounters/pages/EncounterBillingPage';
+import { ChargeIndexPage } from '../features/charges/pages/ChargeIndexPage';
+import { ChargeDetailPage } from '../features/charges/pages/ChargeDetailPage';
+import { PatientsPage } from '../features/patients/PatientsPage';
+import { ProceduresPage } from '../features/procedures/ProceduresPage';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 import { RouteLayout } from './layouts/RouteLayout';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -37,8 +44,46 @@ export const routes: RouteObject[] = [
                   { index: true, Component: ClinicIndexPage, handle: { title: 'Suas clínicas' } },
                   {
                     path: ':clinicId',
-                    Component: ClinicWorkspacePage,
-                    handle: { title: 'Espaço da clínica' },
+                    Component: ClinicOperationsLayout,
+                    children: [
+                      {
+                        index: true,
+                        Component: ClinicWorkspacePage,
+                        handle: { title: 'Espaço da clínica' },
+                      },
+                      {
+                        path: 'atendimentos',
+                        Component: EncounterIndexPage,
+                        handle: { title: 'Atendimentos' },
+                        children: [
+                          {
+                            path: ':encounterId',
+                            Component: EncounterBillingPage,
+                            handle: { title: 'Conferir atendimento' },
+                          },
+                        ],
+                      },
+                      {
+                        path: 'pacientes',
+                        Component: PatientsPage,
+                        handle: { title: 'Pacientes' },
+                      },
+                      {
+                        path: 'procedimentos',
+                        Component: ProceduresPage,
+                        handle: { title: 'Procedimentos e preços' },
+                      },
+                      {
+                        path: 'cobrancas',
+                        Component: ChargeIndexPage,
+                        handle: { title: 'Cobranças' },
+                      },
+                      {
+                        path: 'cobrancas/:chargeId',
+                        Component: ChargeDetailPage,
+                        handle: { title: 'Detalhes da cobrança' },
+                      },
+                    ],
                   },
                 ],
               },

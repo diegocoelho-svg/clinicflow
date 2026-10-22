@@ -20,7 +20,9 @@ export function ClinicDetails({ clinic }: { clinic: Clinic }) {
       <h2 id="selected-heading" ref={heading} tabIndex={-1} data-route-heading>
         {clinic.name}
       </h2>
-      <p className="muted">Seu espaço está pronto para os próximos passos.</p>
+      <p className="muted">
+        Confira atendimentos, emita cobranças e acompanhe o histórico da clínica.
+      </p>
       <dl className="clinic-details">
         <div>
           <dt>Identificação</dt>
@@ -37,10 +39,7 @@ export function ClinicDetails({ clinic }: { clinic: Clinic }) {
       </dl>
       <div className="workspace-info">
         <strong>Você está no espaço desta clínica</strong>
-        <p>
-          A seleção organiza seu trabalho nesta aba. As próximas funcionalidades serão adicionadas
-          aqui.
-        </p>
+        <p>Acesse os atendimentos para conferir os itens ou consulte as cobranças já emitidas.</p>
       </div>
     </>
   );

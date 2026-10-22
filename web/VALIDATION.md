@@ -1,3 +1,194 @@
+# Orca browser workflow validation — 2026-10-21
+
+The current preview was tested through Orca's embedded browser using the
+ordinary fictional demo account. Browser commands were scoped to page
+`0c503232-e52c-42e0-b97c-c7cc4dff17ff` in `clinicflow-frontend`.
+
+Initial inspection returned `runtime_unavailable`. Explicitly revealing the tab
+with `orca tab switch --page <id> --focus` restored inspection and interaction;
+Orca did not need a restart. Subsequent actions used snapshots, element refs,
+fills, selects and clicks. Offscreen table actions were brought into view before
+clicking. A temporary report assertion was corrected to count regex matches
+directly; the cancellation itself had completed successfully.
+
+## Passed scenarios
+
+- Login and the five permanent sidebar entries on the clinic directory.
+- Choosing an area before a clinic and entering that area directly.
+- Breadcrumb returns from charge detail to its collection, then to the clinic
+  overview and clinic directory.
+- Sticky header after real scrolling: top 0, with no page horizontal overflow
+  at the actual 975x723 browser viewport.
+- Creating patient #5 and procedure #5 from their forms.
+- Creating encounter #7 with 2 units at BRL 159.90: total BRL 319.80.
+- Previous/next record navigation within the panel; closing and reopening
+  preserved the search and its single matching row.
+- Issuing charge #7 at BRL 319.80, with item editing disabled.
+- Updating the catalog price to BRL 179.90 while existing encounter and charge
+  snapshots remained at BRL 159.90 per unit.
+- Cancellation required a reason, retained history, and enabled item editing.
+- Updating quantity to 3 retained the original unit price and totalled BRL 479.70.
+  Reissuing created charge #8 while cancelled charge #7 retained BRL 319.80.
+- Cancelling charge #8 retained both historical charges and unlocked items.
+- The existing free encounter #3 displayed no payment required; it was read only.
+- New empty encounter #8 saved without items and disabled charge issuance with
+  an explanation. Existing encounter #5 had already been filled, so its data was
+  left intact and a separate fictional empty record was used.
+
+No application failure was found in these scenarios. End-of-run Orca console
+inspection returned an empty message list. This was a browser validation pass;
+the earlier 55 automated test result below was not rerun because application
+source was unchanged.
+
+## Review records and evidence
+
+Clinic #8 contains patient #5 and procedure #5 named with `QA Orca 21-10`,
+encounter #7 (3 units, BRL 479.70, both test charges cancelled) and encounter #8
+(no items or charges). The test records remain available for review. Changes
+during this pass were limited to these newly created fictional records.
+
+The Orca tab remains signed in at
+http://127.0.0.1:5173/clinicas/8/atendimentos/7.
+Local temporary evidence: `clinicflow-orca-qa-atendimento7.png` and
+`clinicflow-orca-qa-encounter7.txt`. The three preview containers remain active.
+No production source changes, merge or new commit were made in this pass.
+
+---
+
+# Persistent menu and breadcrumb navigation — 2026-10-21
+
+The sidebar now keeps the same five entries before and after selecting a clinic.
+Choosing a clinic area without an active clinic opens `/clinicas?area=<section>`;
+selecting a clinic opens that area directly. Refreshing the directory preserves
+the requested area. Only the four known clinic sections are accepted.
+
+The header breadcrumb exposes links to the clinic directory, selected clinic
+and collection, with the current page marked separately. It remains visible
+on mobile and wraps long clinic names. The directory provider now belongs to
+the authenticated shell, so both navigation and clinic pages share the same
+session-scoped directory. The header remains sticky while scrolling.
+
+Validation: production build/TypeScript, Prettier and git diff check passed.
+The full suite passed **55 tests in 4 files**, exit 0, in 31.64s. Six additional
+interaction regressions cover all four area-selection paths, stable menu
+entries, directory refresh, breadcrumb returns and a missing charge detail.
+Existing session, access-removal and asynchronous-response regressions pass.
+
+Real browser validation used an isolated local Microsoft Edge headless session
+against the running API, because automation in the existing Orca tabs returned
+transient runtime connection failures. Demo login, direct area selection,
+named clinic/directory breadcrumb returns and unchanged sidebar geometry passed.
+At 1366x650, 1024x600, 800x600, 390x844 and 320x568, the breadcrumb stayed
+visible, the header remained at top 0 after scrolling, and the page had no
+horizontal overflow. An existing absolutely positioned table label escaped its
+scroll container on mobile; positioning the table scroll container contains it
+without hiding page content. The final CSS build and formatting checks passed.
+No records were created or changed during this navigation validation.
+
+Evidence is stored locally in the temporary files
+`clinicflow-navigation-browser.json` and `clinicflow-navigation-desktop.png`.
+The preview remains at http://127.0.0.1:5173. No merge or new commit.
+
+---
+
+# Daily clinic workflow and navigation — 2026-10-21
+
+The frontend now includes patient registration/editing, procedure and price
+registration/editing, encounter creation with quantities and an exact total,
+and direct navigation between modules. These use the existing backend contracts
+from the separate charges worktree; no backend source was modified in this step.
+
+## Result and evidence
+
+- Procedure prices accept decimal comma/point and are sent as exact strings.
+  Existing encounter item prices remain historical snapshots.
+- New encounters support inline patient and procedure creation. Description is
+  required, matching the real API and its PostgreSQL constraint. The browser
+  validation exposed an incorrect optional label; this was corrected and the
+  transport fixture now also rejects missing descriptions.
+- Encounter details open in a side panel over the same searchable/filterable
+  list. Close preserves list state. Previous/next changes the record in place.
+- Active charges can be cancelled from the encounter panel with an audit reason.
+- Native nested dialogs preserve focus, restore screen-reader visibility and
+  body scrolling, and prevent closing while saves are pending.
+- A failed item submission can resume the existing encounter, reconciling saved
+  items before adding missing ones. Unconfirmed creation requires checking the
+  list rather than automatically posting another encounter.
+
+Final validation: production build/TypeScript, Prettier and git diff check passed.
+The complete frontend suite passed **49 tests in 4 files**, exit 0, in 21.67s.
+This includes the earlier authentication, clinic and financial suites plus seven
+workflow/price/accessibility checks. The same source was copied into a temporary
+container directory and run with the documented single-worker, no-cache flags
+and a 20-second per-test budget.
+
+Real browser validation used the ordinary demo account and the existing API:
+procedure #4 was created at BRL 145.75, patient #4 was registered inside the
+encounter form, and encounter #6 was saved with two procedure units and total
+BRL 291.50. It was left without a charge for review. Details opened in the side
+panel and closing/reopening retained the searched encounter list. The procedure
+and patient remain fictional demo records available for user review.
+
+Preview remains http://127.0.0.1:5173 with healthy frontend, API and PostgreSQL.
+All changes remain local in clinicflow-frontend. No merge or new commit.
+
+---
+
+Earlier delivery evidence follows; its previous counts and scope are historical.
+
+# Charges frontend validation — 2026-10-21
+
+Branch: `clinicflow-frontend`, checkpoint `40568b8`. No merge or new commit.
+The preview builds the API from the separate `clinicflow-charges` worktree.
+
+## Delivery and checks
+
+- Encounter review/editing, charge issuance/detail/history/filter, cancellation
+  audit, shared error/loading states, responsive styles and corrected encoding.
+- Production build/TypeScript, Prettier and `git diff --check`: passed.
+- Existing application/review suites: **32 tests passed**.
+- New financial flow/precision suite: **10 tests passed**, covering issuance,
+  retry after navigation, pending requests across navigation, cancellation and
+  reissuance, permission denial, zero totals, empty/unavailable encounters and
+  exact large monetary values/overflow.
+- **41 real HTTP checks passed** through Vite to Django: fixtures, issuance
+  replay/conflict, locked items, cancellation audit, immutable snapshots,
+  reissuance, zero totals, empty-encounter rejection and access boundaries.
+- Browser: login, clinic/encounter navigation and desktop layout inspected;
+  charge #5 issued, items locked, cancellation completed with a reason, audit
+  displayed with no error alert.
+
+## Final complete run and runtime notes
+
+The final full run passed **42 tests in 3 files**, exit 0, in 98.69 seconds.
+It used an exact temporary copy of src and the Vite/TypeScript/package files
+inside the frontend container, with the same installed dependencies and
+`--maxWorkers=1 --fileParallelism=false --no-cache --testTimeout=20000`.
+No assertions were changed to obtain this result. An earlier Windows repeat
+hit worker-startup timeout; a direct bind-mount container run exceeded the
+5-second limit in four existing tests, followed by one form lookup failure.
+The increased per-test budget resolved those failures in the complete run.
+
+## Running preview
+
+- UI http://127.0.0.1:5173; API http://127.0.0.1:8008.
+- Compose project `clinicflow-frontend`: API, PostgreSQL and frontend healthy.
+- Existing database retained. Added ordinary demo account `demo.cobrancas`,
+  one demo clinic, three fictional patients and five encounters. Examples cover
+  ready-to-bill, pending, free, cancelled history and missing items. Browser
+  charge #5 was also cancelled during validation. Unrelated records preserved.
+- Frontend kept running for review. No merge performed.
+
+Role metadata, payment confirmation/refunds and patient/encounter registration
+UI are outside this delivery. The backend suite was not reexecuted for these
+frontend changes; this run validated its integration over HTTP.
+
+---
+
+The following evidence belongs to the earlier authentication/clinic checkpoint;
+its paused-runtime statements and test counts are historical.
+
+
 # Frontend delivery and review corrections
 
 Task: `task_300cc3d02e9e` · Dispatch: `ctx_90e76c8738fa`.

@@ -6,7 +6,8 @@ export interface RequestAuth {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  idempotencyKey?: string;
   body?: unknown;
   token?: string;
   signal?: AbortSignal;
@@ -25,6 +26,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       method: options.method || 'GET',
       headers: {
         Accept: 'application/json',
+        ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
         ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
       },

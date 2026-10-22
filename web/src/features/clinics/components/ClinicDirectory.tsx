@@ -1,13 +1,18 @@
-import { NavLink, useNavigate } from 'react-router';
+import { NavLink, useNavigate, useSearchParams } from 'react-router';
 import { Notice } from '../../../shared/ui/Notice';
 import { useClinicDirectory } from '../context';
+import { findClinicSection } from '../navigation';
 import { CreateClinicForm } from './CreateClinicForm';
 
 export function ClinicDirectory() {
   const directory = useClinicDirectory();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedSection = findClinicSection(searchParams.get('area'));
   function refresh() {
-    void navigate('/clinicas', { replace: true });
+    void navigate(requestedSection ? `/clinicas?area=${requestedSection.path}` : '/clinicas', {
+      replace: true,
+    });
     directory.reload();
   }
 
@@ -51,7 +56,11 @@ export function ClinicDirectory() {
           directory.clinics.map((clinic) => (
             <NavLink
               key={clinic.id}
-              to={`/clinicas/${clinic.id}`}
+              to={
+                requestedSection
+                  ? `/clinicas/${clinic.id}/${requestedSection.path}`
+                  : `/clinicas/${clinic.id}`
+              }
               className={({ isActive }) => `clinic-choice ${isActive ? 'selected' : ''}`}
             >
               {({ isActive }) => (
@@ -61,7 +70,13 @@ export function ClinicDirectory() {
                   </span>
                   <span>
                     <strong>{clinic.name}</strong>
-                    <small>{isActive ? 'Clínica selecionada' : 'Abrir espaço da clínica'}</small>
+                    <small>
+                      {isActive
+                        ? 'Clínica selecionada'
+                        : requestedSection
+                          ? `Abrir ${requestedSection.label.toLocaleLowerCase('pt-BR')}`
+                          : 'Abrir espaço da clínica'}
+                    </small>
                   </span>
                   <span className="choice-arrow" aria-hidden="true">
                     {isActive ? '✓' : '→'}

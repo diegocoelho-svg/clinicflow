@@ -3,14 +3,19 @@
 First local React/TypeScript/Vite interface for the existing Django API. The UI
 is in Brazilian Portuguese; source and documentation are in English. It includes
 registration, login, current-user identity, logout, clinic listing, creation,
-selection and a read-only workspace for the selected clinic. All data must be
+selection, patient registration, a procedure/price catalog, encounter creation and charge issuance/history/cancellation. All data must be
 fictional. No cloud account or deployment is needed.
 
-At the 2026-10-20 checkpoint, the frontend is stopped and the API/database
-are paused. The corrected Docker image and dependency volume were verified
-during an authorized preview, including 19 real HTTP checks with synthetic-data
-cleanup. The addresses below describe the local environment; they do not imply
-that a preview is currently running.
+The charges preview runs locally with the separate backend worktree. See the charges preview section below for the API build context and validation evidence.
+
+## Persistent navigation
+
+The sidebar always shows clinics, encounters, patients, procedure prices and
+charges. When no clinic is selected, a module link opens the clinic directory
+with a validated `area` query parameter; choosing a clinic goes directly to the
+requested module. Directory refresh preserves that choice. The breadcrumb
+links back to parent levels and remains available on mobile. Clinic selection
+is explicit and session data remains in memory.
 
 ## Architecture and routes
 
@@ -114,7 +119,7 @@ Vite's optional host workflow defaults to `http://127.0.0.1:8008`.
 
 User fields are `id`, `username`, `email`, `first_name`, `last_name`. Clinic fields
 are `id`, `name`, `created_at`, `updated_at`. Responses expose no membership role,
-so this slice never infers ownership or offers role-dependent edit controls.
+so the UI never infers ownership. Charge cancellation explains the owner requirement and handles permission denial from the API.
 Server-side membership checks enforce isolation; selection never grants access.
 List refresh clears the previous selection so it must be checked again.
 
@@ -386,3 +391,84 @@ frontend feedback has been addressed. Patients, encounters, procedures, charges,
 editing and memberships remain outside this first interface. Production hosting,
 token expiry, automated persistent sessions and password recovery are not
 implemented.
+
+## Charges preview with separate worktrees
+
+This delivery adds encounter review, item editing, charge issuance, status
+filtering, history and cancellation with an audit reason. Display math uses
+integer cents (`BigInt`); the API calculates and freezes the issued amount.
+Empty encounters cannot be billed. Zero totals require no payment.
+
+The charges API lives in the sibling `clinicflow-charges` worktree. Build it
+with this frontend without merging branches. From the frontend worktree root:
+
+```powershell
+$env:CLINICFLOW_API_CONTEXT = '../clinicflow-charges'
+docker compose -p clinicflow-frontend -f compose.yaml -f compose.frontend.yaml up -d --build --wait --wait-timeout 180
+```
+
+In a POSIX shell, prefix the Compose command with
+`CLINICFLOW_API_CONTEXT=../clinicflow-charges` instead. The optional variable
+selects the API build source and defaults to this checkout when omitted.
+Continue selecting the charges worktree when rebuilding this preview. The
+Compose project, database volume and loopback ports remain the same.
+
+| Frontend route | Purpose |
+| --- | --- |
+| `/clinicas/:clinicId/atendimentos` | List encounters and their charge states |
+| `/clinicas/:clinicId/atendimentos/:encounterId` | Inspect/edit items, issue or retry, view history |
+| `/clinicas/:clinicId/cobrancas` | List and filter charges |
+| `/clinicas/:clinicId/cobrancas/:chargeId` | Frozen items, cancellation and audit |
+
+Issuance sends a UUID in `Idempotency-Key`. An operation survives client-side
+navigation within the signed-in session; retry after a lost response uses the
+same UUID. Pending or uncertain issuance blocks editing until resolved.
+Cancellation unlocks editing. Replacement issuance uses a new UUID. Logout
+clears operation state and aborts its requests. Sessions and operation keys
+are not persisted across page reloads. The server enforces charge uniqueness.
+
+The clinic response does not expose the membership role. Cancellation explains
+the owner requirement and displays the API's permission denial; ownership is
+never inferred. Payment confirmation and refunds
+remain outside this delivery.
+
+The local demo contains fictional patients and encounters ready to bill,
+pending payment, free, cancelled and missing items. Existing records were
+preserved. See `VALIDATION.md` for the recorded checks.
+
+Run frontend checks from `web/`:
+
+```sh
+npm run build
+npm run format:check
+npm test -- --maxWorkers=1 --fileParallelism=false --no-cache
+```
+
+## Daily workflow and direct navigation
+
+Selecting a clinic reveals persistent menu entries for Encounters, Patients,
+Procedures and prices, and Charges. Module screens use the full workspace;
+the clinic switcher changes clinics without returning through the start screen.
+
+- Patients: register or edit name, birth date and contact details from the list.
+- Procedures and prices: register or edit a BRL unit price and activation status.
+  The server restricts catalog changes to owners. Price entry accepts a decimal
+  comma or point and sends an exact decimal string. Existing item snapshots remain.
+- Encounters: search/filter the list and open details in a side panel. Closing
+  it restores the same list and search; previous/next actions change the record
+  inside the panel. Direct URLs and browser history still work.
+- New encounter: choose or register a patient inline, select or register priced
+  procedures, set quantities and inspect the total in one form. Saving opens the
+  saved record panel. Empty encounters can be completed later.
+- Issue, inspect, edit items after cancellation, and cancel an active charge
+  directly in the encounter panel. Cancellation preserves its audit reason.
+
+New routes: `/clinicas/:clinicId/pacientes` and
+`/clinicas/:clinicId/procedimentos`. Encounter details are child routes of the
+encounter list, so list search/filter state survives opening and closing details.
+Native dialogs preserve keyboard focus and accessibility through nested inline
+creation, and prevent closing while saves are pending. If adding encounter items
+fails after the encounter was saved, retry reconciles existing items and adds
+only missing ones. An unconfirmed encounter creation requires checking the list
+before creating another record. These safeguards do not introduce automatic
+financial retries.
