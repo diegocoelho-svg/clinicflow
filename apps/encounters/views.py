@@ -8,6 +8,7 @@ from rest_framework.request import Request
 from apps.clinics.models import Clinic
 from apps.encounters.models import Encounter, EncounterItem
 from apps.encounters.serializers import EncounterItemSerializer, EncounterSerializer
+from apps.encounters.services import delete_encounter_item
 
 
 class EncounterViewSet(
@@ -74,3 +75,6 @@ class EncounterItemViewSet(
 
     def perform_create(self, serializer: EncounterItemSerializer) -> None:
         serializer.save(encounter=self.encounter)
+
+    def perform_destroy(self, instance: EncounterItem) -> None:
+        delete_encounter_item(encounter_id=self.encounter.pk, item_id=instance.pk)

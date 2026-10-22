@@ -16,7 +16,8 @@ financial events while keeping operations traceable.
 
 1. An authenticated user creates a clinic and becomes its owner.
 2. Authorized clinic users register fictional patients and their encounters.
-3. An encounter generates a charge in the `PENDING` state.
+3. An authorized user issues a charge from a completed encounter's stored items.
+   Positive totals start `PENDING`; zero totals use `NO_PAYMENT_REQUIRED`.
 4. A simulated payment provider sends a signed confirmation webhook.
 5. The API validates and records the event for asynchronous processing.
 6. A consumer reconciles the payment with its charge and marks it `PAID`.
@@ -57,7 +58,8 @@ Unchecked items are planned work; each delivery updates the checklist.
 - [ ] Provide controlled membership invitations, role changes, and ownership management.
 - [x] Apply clinic isolation to patients, including requests under a different clinic URL.
 - [x] Apply clinic isolation to encounters, including requests under a different clinic URL.
-- [ ] Apply clinic isolation to charges, payments, and financial reports as those resources are implemented.
+- [x] Apply clinic isolation to charge issuance, listing, retrieval, and cancellation.
+- [ ] Apply clinic isolation to payments and financial reports as those resources are implemented.
 
 **Patients and encounters**
 
@@ -66,15 +68,23 @@ Unchecked items are planned work; each delivery updates the checklist.
 - [x] Manage a clinic procedure catalog with nonnegative BRL prices and activation status.
 - [x] Link procedures to encounters with positive quantities, unique procedure items, and historical name/price snapshots.
 - [x] Reject encounter patient assignments that combine resources from different clinics.
-- [ ] Reject cross-clinic references in charges, payments, and other future resources.
+- [x] Reject cross-clinic references in charge endpoints.
+- [ ] Reject cross-clinic references in payments and other future resources.
 
 **Charges and payments**
 
-- [ ] Generate encounter charges with an initial `PENDING` state.
+- [x] Issue charges explicitly from nonempty completed encounters, using BRL only.
+- [x] Start positive charges as `PENDING` and zero charges as `NO_PAYMENT_REQUIRED`.
+- [x] Preserve charge item name, quantity, and price snapshots.
+- [x] Make issuance retries idempotent with a clinic-scoped UUID key.
+- [x] Allow only one non-cancelled charge per encounter, including concurrent requests.
+- [x] Freeze item changes while an encounter has a non-cancelled charge.
+- [x] Let owners cancel unpaid charges with an audit trail, then edit and reissue.
 - [x] Store procedure prices with `Decimal` and PostgreSQL numeric types.
 - [x] Calculate encounter item totals with `Decimal` using the stored unit price.
-- [ ] Calculate complete encounter and charge totals with `Decimal` and PostgreSQL numeric types.
-- [ ] Define and enforce valid charge and payment state transitions.
+- [x] Calculate charge totals with `Decimal` and persist them as PostgreSQL `NUMERIC(22,2)`.
+- [x] Define and enforce charge issuance and cancellation state transitions.
+- [ ] Implement payment state transitions and reconciliation.
 - [ ] Mark a charge `PAID` only after its payment is successfully reconciled.
 - [ ] Record discrepancies for investigation instead of silently marking inconsistent payments as successful.
 - [ ] Expose clinic-scoped financial indicators.
@@ -106,12 +116,13 @@ Unchecked items are planned work; each delivery updates the checklist.
 | Encounter | A patient's attendance and associated procedures |
 | Procedure | Clinic catalog entry with a BRL unit price and activation status |
 | EncounterItem | Procedure reference, quantity, historical name and unit price, and calculated item total |
-| Charge | Amount due and its financial state |
+| Charge | Immutable issued amount, idempotency key, financial state, and cancellation audit |
+| ChargeItem | Issued procedure name, quantity, and unit price snapshot |
 | Payment | Received payment and reconciliation result |
 | Payment event | Provider confirmation, processing status, and duplicate protection |
 
-Financial entity fields, event contracts, and policies for cancellation, refunds,
-and payment discrepancies will be specified before their implementation.
+Charge issuance and cancellation are specified in [the charge contract](docs/charges.md).
+Payment event contracts, refunds, and payment discrepancy policies remain planned work.
 
 ## Current scope
 
@@ -121,8 +132,9 @@ logout, clinic creation/listing/retrieval/name updates, owner/member permissions
 clinic access isolation, clinic-scoped patient creation/listing/retrieval/updates,
 completed encounter creation/listing/retrieval/updates, a clinic procedure catalog
 with BRL prices, owner-only catalog management, encounter items with historical
-prices and quantities, Pytest, Ruff, and GitHub Actions.
-Charges, membership management, payment integrations, the Pub/Sub
+prices and quantities, idempotent charge issuance and read endpoints, owner-only
+charge cancellation, Pytest, Ruff, and GitHub Actions.
+Membership management, payment integrations, the Pub/Sub
 emulator, and its consumer will be added in subsequent development steps.
 
 All patient data and payment integrations will be fictional. The project runs
@@ -686,8 +698,9 @@ finite nonnegative price, and uniqueness per encounter/procedure. Django's
 `PROTECT` policy blocks ORM deletion of referenced encounters and procedures.
 The item's clinic is derived from its encounter. Same-clinic selection and
 snapshot copying are API rules; direct ORM writes do not automatically execute
-serializer validation. Charge generation, discounts, complete encounter totals,
-and restrictions after billing will be specified in subsequent deliveries.
+serializer validation. Charge issuance freezes item writes until the charge is
+cancelled. See [Charges](docs/charges.md) for locking and correction rules.
+Discounts and an encounter-total endpoint remain planned work.
 
 ### Test with Insomnia
 
@@ -713,6 +726,32 @@ and restrictions after billing will be specified in subsequent deliveries.
 6. DELETE the item; expect 204. Retrieving that ID now returns 404. Re-adding an
    active procedure captures its current catalog values.
 7. An unrelated user or an incorrect clinic/encounter URL returns 404.
+
+## Charges
+
+Owners and members can explicitly issue, list, and retrieve charges within their
+clinics. Only owners can cancel them. Issuance requires an `Idempotency-Key` UUID
+header and an empty JSON object. The server totals the stored encounter items,
+copies their snapshots, and records the issuing user in one transaction.
+
+| Method | Endpoint | Behavior |
+| --- | --- | --- |
+| POST | `/api/v1/clinics/{clinic_id}/encounters/{encounter_id}/charges/` | Issue, or replay the same issuance |
+| GET | `/api/v1/clinics/{clinic_id}/charges/` | List this clinic's charges, including cancelled history |
+| GET | `/api/v1/clinics/{clinic_id}/charges/{id}/` | Read a charge and its item snapshots |
+| POST | `/api/v1/clinics/{clinic_id}/charges/{id}/cancel/` | Owner-only cancellation with `{"reason":"Correction"}` |
+
+Positive amounts start `PENDING`; zero amounts use `NO_PAYMENT_REQUIRED` and do
+not represent a payment. A non-cancelled charge prevents item creation, updates,
+and deletion. Cancelling preserves its amount and snapshots, unlocks the encounter
+items, and allows a new issuance with a new UUID. An old UUID always identifies
+its original charge, including after cancellation and reissuance.
+
+There is no endpoint to assign amounts or mark a charge paid. Payment simulation,
+webhooks, reconciliation, discounts, installments, and refunds remain later steps.
+
+See [the charge contract](docs/charges.md) for data types, statuses, errors,
+transaction rules, and an Insomnia validation sequence.
 
 ## Continuous integration
 
@@ -831,7 +870,10 @@ tests cover exact decimal prices, free procedures, negative-price rejection,
 owner/member permissions, activation changes, clinic isolation, and database constraints.
 Encounter item tests cover stored price/name snapshots, exact totals, positive
 quantities, removal, nested access isolation, catalog revalidation, database
-constraints, and concurrent duplicate requests.
+constraints, and concurrent duplicate requests. Charge tests cover idempotent
+retries, key conflicts, zero totals, overflow, historical snapshots, cancellation
+audit, permissions, clinic isolation, transaction rollback, database constraints,
+and real PostgreSQL lock contention between issuance and all item mutations.
 
 To refresh the dependency lock, run this in a clean Python 3.13 container, then
 rebuild and repeat the quality checks. The resolver needs network access.
@@ -870,12 +912,14 @@ configuration will require a separate review.
 .github/workflows/ci.yml     Automated backend checks with Docker Compose
 .github/workflows/discord.yml PR and CI notifications through a secret webhook
 apps/accounts/              Registration, Bearer login, user profile, and logout
+apps/charges/               Charge snapshots, issuance, cancellation, and transactional rules
 apps/clinics/               Clinics, memberships, migrations, and access rules
 apps/core/                  Health endpoints
 apps/encounters/            Completed encounters, procedure items, snapshots, and access rules
 apps/patients/              Clinic-scoped patients, migrations, and access rules
 apps/procedures/            BRL procedure catalog, migrations, and owner permissions
 config/                     Settings, root URLs, WSGI and ASGI entry points
+docs/charges.md             Charge API contract and manual validation
 scripts/lock_dependencies.py Dependency lock regeneration
 scripts/notify_discord.py    Selected GitHub event delivery to Discord
 tests/                      Automated tests

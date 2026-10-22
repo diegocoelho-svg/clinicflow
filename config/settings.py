@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "apps.patients.apps.PatientsConfig",
     "apps.encounters.apps.EncountersConfig",
     "apps.procedures.apps.ProceduresConfig",
+    "apps.charges.apps.ChargesConfig",
     "apps.core.apps.CoreConfig",
 ]
 
