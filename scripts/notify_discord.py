@@ -46,15 +46,12 @@ def notification(event_name: str, event: dict) -> dict | None:
         if pr["base"]["ref"] != "main":
             return None
         action = event["action"]
-        actions = {
-            "opened": ("aberta", 0x2DA44E),
-            "reopened": ("reaberta", 0x2DA44E),
-            "ready_for_review": ("pronta para revisão", 0x0969DA),
-            "closed": ("mergeada" if pr.get("merged") else "encerrada", 0x8957E5),
-        }
-        if action not in actions:
+        if action == "opened":
+            label, color = "aberta", 0x2DA44E
+        elif action == "closed" and pr.get("merged"):
+            label, color = "mergeada", 0x8957E5
+        else:
             return None
-        label, color = actions[action]
         pr_number = number(pr["number"])
         title = f"PR #{pr_number} {label}"
         if pr.get("draft"):
@@ -71,25 +68,21 @@ def notification(event_name: str, event: dict) -> dict | None:
         )
     elif event_name == "workflow_run":
         run = event["workflow_run"]
-        if event.get("action") != "completed" or run["name"] != "CI":
+        if event.get("action") != "completed" or run["name"] not in {
+            "CI",
+            "Frontend CI",
+        }:
             return None
         conclusion = run["conclusion"]
-        if conclusion in FAILURES:
-            title, color = "CI precisa de atenção", 0xCF222E
-        elif (
-            conclusion == "success"
-            and run["head_branch"] == "main"
-            and run["event"] in {"push", "workflow_dispatch"}
-            and run["head_repository"]["full_name"] == repository
-        ):
-            title, color = "CI aprovado na main", 0x2DA44E
-        else:
+        if conclusion not in FAILURES:
             return None
+        title, color = "CI precisa de atenção", 0xCF222E
         description = "Resultado das verificações automáticas do ClinicFlow."
         url = f"{repository_url}/actions/runs/{number(run['id'])}"
         fields.extend(
             [
                 field("Resultado", conclusion),
+                field("Workflow", run["name"]),
                 field("Branch", run["head_branch"]),
                 field("Commit", str(run["head_sha"])[:12]),
                 field("Tentativa", number(run.get("run_attempt", 1))),

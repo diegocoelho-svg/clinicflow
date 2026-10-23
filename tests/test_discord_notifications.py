@@ -51,10 +51,7 @@ def run_event() -> dict:
     ("action", "merged", "label"),
     [
         ("opened", False, "aberta"),
-        ("reopened", False, "reaberta"),
-        ("ready_for_review", False, "pronta para revisão"),
         ("closed", True, "mergeada"),
-        ("closed", False, "encerrada"),
     ],
 )
 def test_pr_events_have_relevant_metadata_without_body_or_mentions(
@@ -84,7 +81,10 @@ def test_draft_pr_is_identified(pr_event: dict) -> None:
     assert payload["embeds"][0]["title"].endswith("(rascunho)")
 
 
-@pytest.mark.parametrize("action", ["edited", "synchronize", "assigned"])
+@pytest.mark.parametrize(
+    "action",
+    ["edited", "synchronize", "assigned", "reopened", "ready_for_review", "closed"],
+)
 def test_ordinary_pr_updates_are_not_notified(pr_event: dict, action: str) -> None:
     pr_event["action"] = action
     assert discord.notification("pull_request_target", pr_event) is None
@@ -95,14 +95,15 @@ def test_pr_targeting_another_branch_is_ignored(pr_event: dict) -> None:
     assert discord.notification("pull_request_target", pr_event) is None
 
 
+@pytest.mark.parametrize("workflow_name", ["CI", "Frontend CI"])
 @pytest.mark.parametrize(
     "conclusion",
     ["failure", "timed_out", "action_required", "startup_failure", "stale"],
 )
 def test_ci_failure_metadata_is_available_even_for_fork_prs(
-    run_event: dict, conclusion: str
+    run_event: dict, conclusion: str, workflow_name: str
 ) -> None:
-    run_event["workflow_run"]["conclusion"] = conclusion
+    run_event["workflow_run"].update(conclusion=conclusion, name=workflow_name)
     payload = discord.notification("workflow_run", run_event)
     embed = payload["embeds"][0]
     assert embed["title"] == "CI precisa de atenção"
@@ -112,19 +113,22 @@ def test_ci_failure_metadata_is_available_even_for_fork_prs(
     assert fields["PR"] == "#12"
     assert fields["Tentativa"] == "2"
     assert fields["Commit"] == "a" * 12
+    assert fields["Workflow"] == workflow_name
 
 
 @pytest.mark.parametrize("event", ["push", "workflow_dispatch"])
-def test_successful_main_ci_is_notified(run_event: dict, event: str) -> None:
+@pytest.mark.parametrize("workflow_name", ["CI", "Frontend CI"])
+def test_successful_main_ci_is_ignored(
+    run_event: dict, event: str, workflow_name: str
+) -> None:
     run_event["workflow_run"].update(
         conclusion="success",
+        name=workflow_name,
         event=event,
         head_branch="main",
         head_repository={"full_name": "owner/clinicflow"},
     )
-    assert discord.notification("workflow_run", run_event)["embeds"][0]["title"] == (
-        "CI aprovado na main"
-    )
+    assert discord.notification("workflow_run", run_event) is None
 
 
 @pytest.mark.parametrize("conclusion", ["cancelled", "skipped", "neutral", "success"])
