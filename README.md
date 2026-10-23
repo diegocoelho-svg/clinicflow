@@ -758,18 +758,29 @@ transaction rules, and an Insomnia validation sequence.
 
 ## Continuous integration
 
-The [CI workflow](.github/workflows/ci.yml) runs on pull requests targeting `main` or
-the charges dependency branch,
-pushes to `main`, and manual dispatches. It builds the existing Docker image and
-starts the API and PostgreSQL through the same `compose.yaml` used locally. The
-startup command applies migrations to a fresh database; Compose waits for both
-services to become healthy before running the checks.
+The [CI workflow](.github/workflows/ci.yml) runs on pull requests targeting `main`,
+pushes to `main`, and manual dispatches. The `Backend checks` job first compares
+changed paths. It skips the Docker build and backend validation only when every
+change is in `web/`, `docs/`, `README.md`, or the frontend workflow. The check
+still reports success with a summary when those steps are skipped.
+
+All other paths, including Python, tests, dependency files, Docker/Compose and
+the backend or Discord workflows, keep the full validation. Unknown paths,
+unavailable comparison commits and failed Git comparisons also run the full
+validation. Renames include both the old and new paths. Manual dispatch always
+runs the complete check.
+
+When validation is required, CI builds the existing Docker image and starts the
+API and PostgreSQL through the same `compose.yaml` used locally. The startup
+command applies migrations to a fresh database; Compose waits for both services
+to become healthy before running the checks.
 
 The `Backend checks` job runs Django system checks, migration consistency,
 Ruff lint and formatting checks, the PostgreSQL-backed Pytest suite, and
 `python -m pip check`. A failed command fails the job. Container logs are shown
 on failure, and a final cleanup step always attempts to remove that run's
-containers, network, and database volume.
+containers, network, and database volume when backend validation was required.
+Web/documentation-only runs do not start or clean up containers.
 
 Each run has a unique Compose project name and disposable development-only
 credentials. It does not need a committed `.env`, application secrets, or a
@@ -796,15 +807,16 @@ change the result of the backend checks.
 
 | Event | Notification |
 | --- | --- |
-| PR targeting `main` is opened or reopened | PR number, title, author, branches and link |
-| Draft PR becomes ready for review | Review-ready status and PR link |
-| PR is merged or closed | Merge/closure status, author and PR link |
-| `CI` fails, times out or needs action | Result, branch, commit, attempt and run link, including fork PR failures |
-| `CI` succeeds on this repository's `main` after a push or manual run | Confirmation that the main branch passed |
+| PR targeting `main` is opened | PR number, title, author, branches and link |
+| PR targeting `main` is merged | Merge status, author and PR link |
+| `CI` or `Frontend CI` fails, times out or needs action | Workflow, result, branch, commit, attempt and run link, including fork PR failures |
 | Manual notification workflow run | Connection-test message |
 
-Cancelled, skipped and neutral CI runs are ignored. Successful PR runs and
-ordinary PR edits/commits do not send messages. Messages are in Portuguese and
+A job-level condition skips the notification runner for successful, cancelled,
+skipped and neutral CI runs, including successes on `main`. Closing a PR without
+merging, reopening it, marking it ready for review and ordinary edits/commits do
+not send messages. GitHub may still list a skipped workflow for an ignored
+completion, but no notification runner is allocated. Messages are in Portuguese and
 disable all user, role and everyone mentions. PR bodies, logs and artifacts are
 not sent. Metadata is escaped and bounded before JSON serialization.
 
@@ -924,6 +936,7 @@ apps/patients/              Clinic-scoped patients, migrations, and access rules
 apps/procedures/            BRL procedure catalog, migrations, and owner permissions
 config/                     Settings, root URLs, WSGI and ASGI entry points
 docs/charges.md             Charge API contract and manual validation
+scripts/check_backend_changes.py Conservative backend CI selection
 scripts/lock_dependencies.py Dependency lock regeneration
 scripts/notify_discord.py    Selected GitHub event delivery to Discord
 tests/                      Automated tests

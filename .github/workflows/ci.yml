@@ -34,34 +34,50 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Detect backend changes
+        id: changes
+        run: python3 scripts/check_backend_changes.py
+
+      - name: Report skipped backend validation
+        if: steps.changes.outputs.required == 'false'
+        run: echo 'Backend checks skipped because only web or documentation files changed.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Validate Compose configuration
+        if: steps.changes.outputs.required == 'true'
         run: docker compose config --quiet
 
       - name: Build and start API and PostgreSQL
+        if: steps.changes.outputs.required == 'true'
         run: docker compose up -d --build --wait --wait-timeout 180
 
       - name: Check Django configuration
+        if: steps.changes.outputs.required == 'true'
         run: docker compose exec -T api python manage.py check
 
       - name: Check migration consistency
+        if: steps.changes.outputs.required == 'true'
         run: docker compose exec -T api python manage.py makemigrations --check --dry-run
 
       - name: Lint Python code
+        if: steps.changes.outputs.required == 'true'
         run: docker compose exec -T api ruff check .
 
       - name: Check Python formatting
+        if: steps.changes.outputs.required == 'true'
         run: docker compose exec -T api ruff format --check .
 
       - name: Run PostgreSQL-backed tests
+        if: steps.changes.outputs.required == 'true'
         run: docker compose exec -T api pytest
 
       - name: Check installed dependencies
+        if: steps.changes.outputs.required == 'true'
         run: docker compose exec -T api python -m pip check
 
       - name: Show container logs on failure
-        if: failure()
+        if: failure() && steps.changes.outputs.required == 'true'
         run: docker compose logs --no-color --tail 200 api db
 
       - name: Remove disposable CI containers and volumes
-        if: always()
+        if: always() && steps.changes.outputs.required == 'true'
         run: docker compose down --volumes --remove-orphans
