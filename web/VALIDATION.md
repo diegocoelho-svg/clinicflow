@@ -1,3 +1,14 @@
+# Pre-merge review corrections — 2026-10-22
+
+- **62 interaction tests passed** across five files. The six new cases cover preserving another item's quantity draft, blocking duplicate patient/procedure creates after lost acknowledgements, recovering both inline forms without losing encounter drafts, and allowing retry after an explicit validation rejection.
+- TypeScript, production build and Prettier checks passed.
+- Real Orca browser QA on fictional encounter #11 in clinic #8 confirmed that saving quantity 6 for the first item retains the second item's unsaved quantity 5. The second quantity was then saved and editing completed; no charge was issued.
+- Four real HTTP checks through the Vite proxy returned the expected status: newline reference 400, oversized reference with newline 400, unknown clinic 400, invalid signature 403. None created a payment event.
+- Docker Desktop on Windows was serving cached Vite modules after host edits. The Compose frontend now enables polling through CLINICFLOW_WATCH_POLLING; native development retains Vite defaults. A temporary module probe confirmed invalidation after a host edit and was removed.
+- Stack: main → charges (#10) → payments (#12) → frontend (#11). Both CI workflows accept the corresponding PR bases. Backend validation passed with 615 tests on the dependency branch.
+
+The earlier validation records below describe the previous checkpoints.
+
 # Paid charge guidance — 2026-10-22
 
 The simulated-payment backend was exercised through 30 real HTTP assertions

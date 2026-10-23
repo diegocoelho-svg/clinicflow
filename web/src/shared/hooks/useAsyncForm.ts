@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError, errorMessage, type FieldErrors } from '../api/errors';
 
 // Scope each submission to its form's lifetime, even if a transport ignores abort.
-export function useAsyncForm() {
+export function useAsyncForm({ guardCreation = false }: { guardCreation?: boolean } = {}) {
   const [pending, setPending] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const uncertainResult = useRef(false);
   const [error, setError] = useState('');
   const [fields, setFields] = useState<FieldErrors>({});
   const current = useRef<AbortController | null>(null);
@@ -17,7 +19,7 @@ export function useAsyncForm() {
   );
 
   async function submit<T>(task: (signal: AbortSignal) => Promise<T>): Promise<{ data: T } | null> {
-    if (current.current) return null;
+    if (current.current || uncertainResult.current) return null;
     const controller = new AbortController();
     current.current = controller;
     const version = ++generation.current;
@@ -29,6 +31,14 @@ export function useAsyncForm() {
       return version === generation.current && !controller.signal.aborted ? { data } : null;
     } catch (failure) {
       if (version === generation.current && !controller.signal.aborted) {
+        // A missing acknowledgement does not prove that a create was rejected.
+        if (
+          guardCreation &&
+          (!(failure instanceof ApiError) || failure.status === 0 || failure.status >= 500)
+        ) {
+          uncertainResult.current = true;
+          setUncertain(true);
+        }
         setError(errorMessage(failure));
         setFields(failure instanceof ApiError ? failure.fields : {});
       }
@@ -41,5 +51,5 @@ export function useAsyncForm() {
     }
   }
 
-  return { pending, error, fields, submit };
+  return { pending, uncertain, error, fields, submit };
 }

@@ -76,6 +76,7 @@ function EncounterForm({
 }) {
   const auth = useClinicAccess();
   const form = useAsyncForm();
+  const directory = useAsyncForm();
   const [patients, setPatients] = useState(initialPatients);
   const [procedures, setProcedures] = useState(initialProcedures);
   const [patient, setPatient] = useState('');
@@ -88,7 +89,31 @@ function EncounterForm({
   const [newPatient, setNewPatient] = useState(false);
   const [newProcedure, setNewProcedure] = useState(false);
   const [inlineBusy, setInlineBusy] = useState(false);
-  useEffect(() => busyChanged(form.pending), [form.pending, busyChanged]);
+  useEffect(
+    () => busyChanged(form.pending || directory.pending),
+    [form.pending, directory.pending, busyChanged],
+  );
+  async function refreshDirectory() {
+    const result = await directory.submit(async (signal) => {
+      const [patients, procedures] = await Promise.all([
+        patientApi.list(clinic, auth, signal),
+        procedureApi.list(clinic, auth, signal),
+      ]);
+      return { patients, procedures };
+    });
+    if (result) {
+      setPatients(result.data.patients);
+      setProcedures(result.data.procedures);
+    }
+  }
+  function closePatientForm() {
+    setNewPatient(false);
+    void refreshDirectory();
+  }
+  function closeProcedureForm() {
+    setNewProcedure(false);
+    void refreshDirectory();
+  }
   const active = procedures.filter((item) => item.is_active);
   const selected = rows.filter((row) => row.procedure);
   const total = itemSum(
@@ -105,7 +130,15 @@ function EncounterForm({
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...change } : row)));
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!patient || !description.trim() || !validRows || total === null || uncertain) return;
+    if (
+      !patient ||
+      !description.trim() ||
+      !validRows ||
+      total === null ||
+      uncertain ||
+      directory.pending
+    )
+      return;
     const result = await form.submit(async (signal) => {
       if (!savedEncounter.current) {
         try {
@@ -159,13 +192,22 @@ function EncounterForm({
     <>
       <form onSubmit={submit} aria-label="Cadastrar atendimento">
         {form.error && <Notice>{form.error}</Notice>}
+        {directory.error && <Notice>{directory.error}</Notice>}
+        <button
+          className="text-button"
+          type="button"
+          disabled={form.pending || directory.pending}
+          onClick={() => void refreshDirectory()}
+        >
+          {directory.pending ? 'Atualizando opções…' : 'Atualizar pacientes e procedimentos'}
+        </button>
         {savedEncounter.current && form.error && (
           <Notice kind="info">
             O atendimento #{savedEncounter.current.id} foi salvo. Tentar novamente conclui os itens
             que faltam, sem criar outro atendimento.
           </Notice>
         )}
-        <fieldset disabled={form.pending || uncertain}>
+        <fieldset disabled={form.pending || directory.pending || uncertain}>
           <div className="field-heading">
             <label htmlFor="encounter-patient">Paciente</label>
             <button
@@ -338,11 +380,11 @@ function EncounterForm({
         )}
       </form>
       {newPatient && (
-        <Dialog busy={inlineBusy} title="Novo paciente" close={() => setNewPatient(false)}>
+        <Dialog busy={inlineBusy} title="Novo paciente" close={closePatientForm}>
           <PatientForm
             onBusyChange={setInlineBusy}
             clinic={clinic}
-            cancel={() => setNewPatient(false)}
+            cancel={closePatientForm}
             saved={(item) => {
               setPatients((current) => [...current, item]);
               setPatient(String(item.id));
@@ -352,15 +394,11 @@ function EncounterForm({
         </Dialog>
       )}
       {newProcedure && (
-        <Dialog
-          busy={inlineBusy}
-          title="Novo procedimento e preço"
-          close={() => setNewProcedure(false)}
-        >
+        <Dialog busy={inlineBusy} title="Novo procedimento e preço" close={closeProcedureForm}>
           <ProcedureForm
             onBusyChange={setInlineBusy}
             clinic={clinic}
-            cancel={() => setNewProcedure(false)}
+            cancel={closeProcedureForm}
             saved={(item) => {
               setProcedures((current) => [...current, item]);
               setRows((current) => {

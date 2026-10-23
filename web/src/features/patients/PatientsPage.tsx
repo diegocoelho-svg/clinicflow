@@ -21,6 +21,10 @@ export function PatientsPage() {
     [clinic.id, auth],
   );
   const { state, retry } = useResource(`${clinic.id}:patients`, load);
+  const closeForm = () => {
+    setEditing(null);
+    retry();
+  };
   const patients =
     state.status === 'success'
       ? state.data.filter((patient) =>
@@ -105,13 +109,13 @@ export function PatientsPage() {
         <Dialog
           busy={saving}
           title={editing === 'new' ? 'Novo paciente' : 'Editar paciente'}
-          close={() => setEditing(null)}
+          close={closeForm}
         >
           <PatientForm
             onBusyChange={setSaving}
             clinic={clinic.id}
             patient={editing === 'new' ? undefined : editing}
-            cancel={() => setEditing(null)}
+            cancel={closeForm}
             saved={(patient) => {
               setEditing(null);
               setNotice(`${patient.full_name}: dados salvos.`);

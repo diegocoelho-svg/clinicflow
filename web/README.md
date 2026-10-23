@@ -472,3 +472,19 @@ fails after the encounter was saved, retry reconciles existing items and adds
 only missing ones. An unconfirmed encounter creation requires checking the list
 before creating another record. These safeguards do not introduce automatic
 financial retries.
+## Recovery after an uncertain creation
+
+If the API may have saved a new patient or procedure but its response is lost,
+the form blocks another submission and offers **Conferir pacientes** or
+**Conferir procedimentos**. Closing reloads the list before a new creation.
+The same recovery inside **Novo atendimento** reloads the available options
+while preserving its patient selection, description and procedure drafts.
+An explicit validation/permission rejection still permits a corrected retry.
+
+Item-quantity drafts belong to the encounter panel. Saving one item clears only
+that item's draft; drafts for other quantities and the new-item selection survive
+refreshes. **Descartar rascunhos e voltar** explicitly discards the remaining drafts.
+
+The Docker frontend enables Vite polling with **CLINICFLOW_WATCH_POLLING=true**
+to observe host edits on Docker Desktop for Windows. This option applies only
+to the development server; it does not change the production build.

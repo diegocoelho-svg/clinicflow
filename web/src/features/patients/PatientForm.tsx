@@ -19,7 +19,7 @@ export function PatientForm({
   onBusyChange?: (busy: boolean) => void;
 }) {
   const auth = useClinicAccess();
-  const form = useAsyncForm();
+  const form = useAsyncForm({ guardCreation: !patient });
   useEffect(() => onBusyChange?.(form.pending), [form.pending, onBusyChange]);
   const [name, setName] = useState(patient?.full_name ?? '');
   const [birthDate, setBirthDate] = useState(patient?.birth_date ?? '');
@@ -44,7 +44,7 @@ export function PatientForm({
   return (
     <form onSubmit={submit} aria-label={patient ? 'Editar paciente' : 'Cadastrar paciente'}>
       {form.error && <Notice>{form.error}</Notice>}
-      <fieldset disabled={form.pending}>
+      <fieldset disabled={form.pending || form.uncertain}>
         <Field
           autoFocus
           label="Nome completo"
@@ -92,6 +92,16 @@ export function PatientForm({
           </button>
         </div>
       </fieldset>
+      {form.uncertain && (
+        <>
+          <Notice kind="info">
+            O cadastro pode ter sido salvo. Confira a lista antes de cadastrar novamente.
+          </Notice>
+          <button className="button secondary" type="button" onClick={cancel}>
+            Conferir pacientes
+          </button>
+        </>
+      )}
     </form>
   );
 }

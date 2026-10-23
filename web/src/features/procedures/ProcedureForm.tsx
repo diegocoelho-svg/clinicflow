@@ -20,7 +20,7 @@ export function ProcedureForm({
   onBusyChange?: (busy: boolean) => void;
 }) {
   const auth = useClinicAccess();
-  const form = useAsyncForm();
+  const form = useAsyncForm({ guardCreation: !procedure });
   useEffect(() => onBusyChange?.(form.pending), [form.pending, onBusyChange]);
   const [name, setName] = useState(procedure?.name ?? '');
   const [price, setPrice] = useState(procedure?.unit_price.replace('.', ',') ?? '');
@@ -54,7 +54,7 @@ export function ProcedureForm({
       aria-label={procedure ? 'Editar procedimento e preço' : 'Cadastrar procedimento e preço'}
     >
       {form.error && <Notice>{form.error}</Notice>}
-      <fieldset disabled={form.pending}>
+      <fieldset disabled={form.pending || form.uncertain}>
         <Field
           autoFocus
           label="Nome do procedimento"
@@ -99,6 +99,16 @@ export function ProcedureForm({
           </button>
         </div>
       </fieldset>
+      {form.uncertain && (
+        <>
+          <Notice kind="info">
+            O cadastro pode ter sido salvo. Confira a lista antes de cadastrar novamente.
+          </Notice>
+          <button className="button secondary" type="button" onClick={cancel}>
+            Conferir procedimentos
+          </button>
+        </>
+      )}
     </form>
   );
 }

@@ -23,6 +23,10 @@ export function ProceduresPage() {
     [clinic.id, auth],
   );
   const { state, retry } = useResource(`${clinic.id}:procedures`, load);
+  const closeForm = () => {
+    setEditing(null);
+    retry();
+  };
   const procedures =
     state.status === 'success'
       ? state.data.filter((item) =>
@@ -114,13 +118,13 @@ export function ProceduresPage() {
         <Dialog
           busy={saving}
           title={editing === 'new' ? 'Novo procedimento e preço' : 'Editar procedimento e preço'}
-          close={() => setEditing(null)}
+          close={closeForm}
         >
           <ProcedureForm
             onBusyChange={setSaving}
             clinic={clinic.id}
             procedure={editing === 'new' ? undefined : editing}
-            cancel={() => setEditing(null)}
+            cancel={closeForm}
             saved={(procedure) => {
               setEditing(null);
               setNotice(`${procedure.name}: preço e dados salvos.`);

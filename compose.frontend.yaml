@@ -13,6 +13,7 @@ services:
     build: ./web
     environment:
       API_PROXY_TARGET: http://api:8000
+      CLINICFLOW_WATCH_POLLING: "true"
     ports:
       - "127.0.0.1:5173:5173"
     volumes:

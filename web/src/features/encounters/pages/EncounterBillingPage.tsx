@@ -16,7 +16,7 @@ import { issuanceScope, useChargeOperations } from '../../charges/context';
 import { useActiveClinic } from '../../clinics/hooks/useActiveClinic';
 import { useClinicAccess } from '../../clinics/hooks/useClinicAccess';
 import { encounterApi } from '../api';
-import { EncounterItemsEditor } from '../components/EncounterItemsEditor';
+import { EncounterItemsEditor, emptyEncounterItemsDraft } from '../components/EncounterItemsEditor';
 
 export function EncounterBillingPage() {
   const { encounterId } = useParams();
@@ -37,6 +37,7 @@ function EncounterBilling({ id }: { id: number }) {
   const auth = useClinicAccess();
   const operations = useChargeOperations();
   const [editing, setEditing] = useState(false);
+  const [itemDraft, setItemDraft] = useState(emptyEncounterItemsDraft);
   const load = useCallback(
     async (signal: AbortSignal) => {
       const [encounter, items, patients, procedures, charges] = await Promise.all([
@@ -104,9 +105,12 @@ function EncounterBilling({ id }: { id: number }) {
               encounter={id}
               items={state.data.items}
               procedures={state.data.procedures}
+              draft={itemDraft}
+              setDraft={setItemDraft}
               updated={operations.refresh}
               close={() => {
                 setEditing(false);
+                setItemDraft(emptyEncounterItemsDraft());
                 operations.refresh();
               }}
             />
@@ -119,7 +123,10 @@ function EncounterBilling({ id }: { id: number }) {
                   disabled={locked && !editing}
                   onClick={() => {
                     setEditing(!editing);
-                    if (editing) operations.refresh();
+                    if (editing) {
+                      setItemDraft(emptyEncounterItemsDraft());
+                      operations.refresh();
+                    }
                   }}
                 >
                   {editing ? 'Concluir edição' : 'Editar itens'}
