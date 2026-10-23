@@ -1,8 +1,6 @@
-from functools import cached_property
-
 from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
-from rest_framework import mixins, serializers, status, viewsets
+from rest_framework import mixins, serializers, status
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -16,25 +14,17 @@ from apps.charges.serializers import (
     IssueChargeSerializer,
 )
 from apps.charges.services import cancel_charge, issue_charge
-from apps.clinics.models import ClinicMembership
+from apps.clinics.access import ClinicScopedViewSet
 from apps.encounters.models import Encounter
 
 
 class ChargeViewSet(
-    mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+    mixins.ListModelMixin, mixins.RetrieveModelMixin, ClinicScopedViewSet
 ):
     serializer_class = ChargeSerializer
     permission_classes = [IsAuthenticated, CanAccessCharges]
     parser_classes = [JSONParser]
     http_method_names = ["get", "post", "head", "options"]
-
-    @cached_property
-    def clinic_membership(self) -> ClinicMembership:
-        return get_object_or_404(
-            ClinicMembership.objects.select_related("clinic"),
-            clinic_id=self.kwargs["clinic_id"],
-            user=self.request.user,
-        )
 
     def get_queryset(self) -> QuerySet[Charge]:
         return Charge.objects.filter(

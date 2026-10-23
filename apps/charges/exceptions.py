@@ -1,7 +1,6 @@
-from rest_framework.exceptions import APIException
+from apps.core.exceptions import Conflict
 
 
-class ChargeConflict(APIException):
-    status_code = 409
+class ChargeConflict(Conflict):
     default_detail = "The operation conflicts with the current charge state."
-    default_code = "charge_conflict"
+    code = "charge_conflict"

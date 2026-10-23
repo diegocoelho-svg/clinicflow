@@ -99,5 +99,5 @@ class EncounterItemSerializer(serializers.ModelSerializer):
         return update_encounter_item(
             encounter_id=instance.encounter_id,
             item_id=instance.pk,
-            changes=validated_data,
+            quantity=validated_data.get("quantity"),
         )

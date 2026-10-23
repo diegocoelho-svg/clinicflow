@@ -1,20 +1,24 @@
 from django.db import IntegrityError, transaction
-from django.shortcuts import get_object_or_404
-from rest_framework.exceptions import ValidationError
 
-from apps.charges.exceptions import ChargeConflict
-from apps.charges.models import Charge
+from apps.core.exceptions import BusinessRuleViolation, ResourceNotFound
+from apps.encounters.exceptions import EncounterItemsLocked
+from apps.encounters.locking import lock_encounter
 from apps.encounters.models import Encounter, EncounterItem
 from apps.procedures.models import Procedure
 
 
 def _lock_editable_encounter(encounter_id: int) -> Encounter:
-    encounter = get_object_or_404(
-        Encounter.objects.select_for_update(), pk=encounter_id
-    )
-    if encounter.charges.exclude(status=Charge.Status.CANCELLED).exists():
-        raise ChargeConflict("Cancel the encounter's charge before changing its items.")
+    encounter = lock_encounter(encounter_id)
+    if encounter.charges.active().exists():
+        raise EncounterItemsLocked()
     return encounter
+
+
+def _get_item(encounter: Encounter, item_id: int) -> EncounterItem:
+    try:
+        return EncounterItem.objects.get(pk=item_id, encounter=encounter)
+    except EncounterItem.DoesNotExist as error:
+        raise ResourceNotFound() from error
 
 
 def create_encounter_item(
@@ -30,7 +34,7 @@ def create_encounter_item(
                 .first()
             )
             if procedure is None or not procedure.is_active:
-                raise ValidationError(
+                raise BusinessRuleViolation(
                     {"procedure": ["An active procedure from this clinic is required."]}
                 )
             return EncounterItem.objects.create(
@@ -45,22 +49,21 @@ def create_encounter_item(
             getattr(error.__cause__, "diag", None), "constraint_name", None
         )
         if constraint == "unique_encounter_procedure_item":
-            raise ValidationError(
+            raise BusinessRuleViolation(
                 {"procedure": ["This procedure is already present in the encounter."]}
             ) from error
         raise
 
 
 def update_encounter_item(
-    *, encounter_id: int, item_id: int, changes: dict
+    *, encounter_id: int, item_id: int, quantity: int | None = None
 ) -> EncounterItem:
     with transaction.atomic():
         encounter = _lock_editable_encounter(encounter_id)
-        # Re-read under the parent lock so a stale serializer cannot restore
-        # an item that another request has already deleted.
-        item = get_object_or_404(EncounterItem, pk=item_id, encounter=encounter)
-        if "quantity" in changes:
-            item.quantity = changes["quantity"]
+        # Re-read under the parent lock; a stale serializer cannot restore a deletion.
+        item = _get_item(encounter, item_id)
+        if quantity is not None:
+            item.quantity = quantity
         item.save(update_fields=["quantity", "updated_at"])
         return item
 
@@ -68,5 +71,4 @@ def update_encounter_item(
 def delete_encounter_item(*, encounter_id: int, item_id: int) -> None:
     with transaction.atomic():
         encounter = _lock_editable_encounter(encounter_id)
-        item = get_object_or_404(EncounterItem, pk=item_id, encounter=encounter)
-        item.delete()
+        _get_item(encounter, item_id).delete()

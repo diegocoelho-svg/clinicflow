@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Self
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -9,6 +10,11 @@ from apps.encounters.models import Encounter
 from apps.procedures.models import Procedure
 
 MAX_CHARGE_AMOUNT = Decimal("99999999999999999999.99")
+
+
+class ChargeQuerySet(models.QuerySet):
+    def active(self) -> Self:
+        return self.exclude(status=Charge.Status.CANCELLED)
 
 
 class Charge(models.Model):
@@ -52,6 +58,8 @@ class Charge(models.Model):
     cancellation_reason = models.CharField(  # noqa: DJ001
         max_length=1000, null=True, blank=True
     )
+
+    objects = ChargeQuerySet.as_manager()
 
     class Meta:
         ordering = ["id"]

@@ -3,13 +3,12 @@ from uuid import UUID
 
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
-from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework.exceptions import ValidationError
 
 from apps.charges.exceptions import ChargeConflict
 from apps.charges.models import MAX_CHARGE_AMOUNT, Charge, ChargeItem
-from apps.encounters.models import Encounter
+from apps.core.exceptions import BusinessRuleViolation, ResourceNotFound
+from apps.encounters.locking import lock_encounter
 
 
 def _check_replay(charge: Charge, encounter_id: int) -> tuple[Charge, bool]:
@@ -24,30 +23,28 @@ def issue_charge(
     try:
         with transaction.atomic():
             # Item writers and cancellation acquire this same parent lock first.
-            encounter = get_object_or_404(
-                Encounter.objects.select_for_update(),
-                pk=encounter_id,
-                clinic_id=clinic_id,
-            )
+            encounter = lock_encounter(encounter_id, clinic_id=clinic_id)
             previous = Charge.objects.filter(
                 clinic_id=clinic_id, idempotency_key=idempotency_key
             ).first()
             if previous is not None:
                 return _check_replay(previous, encounter_id)
-            if encounter.charges.exclude(status=Charge.Status.CANCELLED).exists():
+            if encounter.charges.active().exists():
                 raise ChargeConflict(
                     "This encounter already has a non-cancelled charge."
                 )
 
             items = list(encounter.items.all())
             if not items:
-                raise ValidationError({"encounter": ["At least one item is required."]})
+                raise BusinessRuleViolation(
+                    {"encounter": ["At least one item is required."]}
+                )
             amount = sum((item.total for item in items), start=Decimal("0.00"))
             if (
                 not amount.is_finite()
                 or not Decimal("0.00") <= amount <= MAX_CHARGE_AMOUNT
             ):
-                raise ValidationError(
+                raise BusinessRuleViolation(
                     {"amount": ["The charge total exceeds its supported range."]}
                 )
 
@@ -99,12 +96,11 @@ def cancel_charge(
     *, clinic_id: int, charge_id: int, actor: User, reason: str
 ) -> Charge:
     with transaction.atomic():
-        original = get_object_or_404(Charge, pk=charge_id, clinic_id=clinic_id)
-        get_object_or_404(
-            Encounter.objects.select_for_update(),
-            pk=original.encounter_id,
-            clinic_id=clinic_id,
-        )
+        try:
+            original = Charge.objects.get(pk=charge_id, clinic_id=clinic_id)
+        except Charge.DoesNotExist as error:
+            raise ResourceNotFound() from error
+        lock_encounter(original.encounter_id, clinic_id=clinic_id)
         charge = Charge.objects.get(pk=original.pk)
         if charge.status == Charge.Status.CANCELLED:
             return charge

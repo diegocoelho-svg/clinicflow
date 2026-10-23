@@ -5,14 +5,14 @@ from uuid import uuid4
 import pytest
 from django.contrib.auth.models import User
 from django.db import IntegrityError
-from django.http import Http404
 from django.urls import reverse
 from rest_framework.test import APIClient
 
-from apps.charges.exceptions import ChargeConflict
 from apps.charges.models import MAX_CHARGE_AMOUNT, Charge, ChargeItem
 from apps.charges.services import issue_charge
 from apps.clinics.models import ClinicMembership
+from apps.core.exceptions import ResourceNotFound
+from apps.encounters.exceptions import EncounterItemsLocked
 from apps.encounters.models import Encounter, EncounterItem
 from apps.encounters.serializers import EncounterItemSerializer
 from apps.patients.models import Patient
@@ -606,7 +606,7 @@ def test_stale_item_serializer_cannot_bypass_a_new_charge(billing, issue):
     )
     assert serializer.is_valid(), serializer.errors
     assert issue().status_code == 201
-    with pytest.raises(ChargeConflict):
+    with pytest.raises(EncounterItemsLocked):
         serializer.save()
     billing.item.refresh_from_db()
     assert billing.item.quantity == 2
@@ -622,6 +622,6 @@ def test_stale_item_serializer_cannot_resurrect_a_deleted_item(billing):
     )
     assert serializer.is_valid(), serializer.errors
     EncounterItem.objects.filter(pk=item_id).delete()
-    with pytest.raises(Http404):
+    with pytest.raises(ResourceNotFound):
         serializer.save()
     assert not EncounterItem.objects.filter(pk=item_id).exists()
