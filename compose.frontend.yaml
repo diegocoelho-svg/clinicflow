@@ -1,0 +1,37 @@
+name: clinicflow-frontend
+
+services:
+  api:
+    build:
+      context: ${CLINICFLOW_API_CONTEXT:-.}
+    environment:
+      SIMULATED_PAYMENT_WEBHOOK_SECRET: ${SIMULATED_PAYMENT_WEBHOOK_SECRET:-}
+    ports: !override
+      - "127.0.0.1:8008:8000"
+
+  frontend:
+    build: ./web
+    environment:
+      API_PROXY_TARGET: http://api:8000
+      CLINICFLOW_WATCH_POLLING: "true"
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ./web:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5173').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+volumes:
+  frontend_node_modules:

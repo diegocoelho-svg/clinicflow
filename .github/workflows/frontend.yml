@@ -1,0 +1,34 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths: ['web/**', '.github/workflows/frontend.yml']
+  push:
+    branches: [main]
+    paths: ['web/**', '.github/workflows/frontend.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build Node 24 validation image
+        run: docker build --tag clinicflow-web-check ./web
+      - name: Check formatting, production build and tests
+        run: >-
+          docker run --rm clinicflow-web-check sh -lc
+          'npm run format:check && npm run build &&
+          npm test -- --maxWorkers=1 --fileParallelism=false --no-cache --testTimeout=20000'

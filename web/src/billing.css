@@ -1,0 +1,460 @@
+/* Clinic operations extend the existing local workspace styles. */
+.clinic-grid.operations-grid {
+  grid-template-columns: minmax(230px, 0.65fr) minmax(0, 1.65fr);
+}
+.operations-grid .clinic-list {
+  max-height: 260px;
+}
+.operations-panel {
+  padding: 24px;
+  overflow-wrap: anywhere;
+}
+.operations-panel .selected-panel {
+  padding: 0;
+}
+.operations-clinic {
+  padding-bottom: 18px;
+}
+.operations-clinic .eyebrow {
+  margin-bottom: 5px;
+  font-size: 0.59rem;
+}
+.operations-clinic > strong {
+  font-size: 1rem;
+}
+.clinic-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 -4px 25px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid #dfe6dc;
+}
+.clinic-navigation a {
+  padding: 7px 11px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-size: 0.8rem;
+  color: #547066;
+}
+.clinic-navigation a[aria-current='page'] {
+  background: #edf3e7;
+  color: #264f3d;
+  font-weight: 650;
+}
+.clinic-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+.clinic-entry-actions .button {
+  text-decoration: none;
+}
+.operations-heading,
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.operations-heading h2 {
+  margin-bottom: 8px;
+  font-size: 1.55rem;
+}
+.operations-heading p {
+  margin-bottom: 0;
+  font-size: 0.85rem;
+}
+.operations-heading .button,
+.section-heading .button {
+  flex-shrink: 0;
+  font-size: 0.76rem;
+}
+.section-heading {
+  align-items: center;
+}
+.section-heading h3 {
+  margin: 0;
+}
+.back-link {
+  display: inline-block;
+  font-size: 0.76rem;
+  margin-bottom: 20px;
+  color: #547066;
+}
+.resource-error {
+  padding: 12px 0 20px;
+}
+.operations-empty {
+  padding: 28px 10px;
+  text-align: center;
+  color: #61716e;
+}
+.operations-empty h3 {
+  font-size: 1rem;
+}
+.operations-empty p {
+  font-size: 0.83rem;
+}
+.operations-empty a.button {
+  text-decoration: none;
+  display: inline-block;
+}
+.charge-list,
+.encounter-list,
+.charge-history {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.charge-list > li,
+.encounter-list > li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 21px 0;
+  border-top: 1px solid #e3e9df;
+}
+.charge-list h3,
+.encounter-list h3 {
+  font-size: 1rem;
+  margin-bottom: 6px;
+}
+.charge-list > li > div,
+.encounter-list > li > div {
+  min-width: 0;
+}
+.charge-list small,
+.charge-list .record-parent-link,
+.encounter-list time {
+  display: block;
+  color: #61716e;
+  font-size: 0.75rem;
+  margin-top: 6px;
+}
+.charge-list > li > div:last-child,
+.encounter-list > li > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.encounter-list .eyebrow {
+  font-size: 0.55rem;
+  margin-bottom: 8px;
+}
+.encounter-list .text-button {
+  font-size: 0.76rem;
+}
+.charge-list-amount {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+.charge-status,
+.plain-status {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 5px;
+  font-size: 0.68rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.plain-status {
+  padding-left: 0;
+  color: #61716e;
+}
+.status-pending {
+  background: #fbf0da;
+  color: #785117;
+}
+.status-no_payment_required {
+  background: #eaf1e3;
+  color: #42613a;
+}
+.status-paid {
+  background: #e1f1e8;
+  color: #265c43;
+}
+.status-cancelled,
+.status-unknown {
+  background: #eef0ed;
+  color: #59655b;
+}
+.charge-filter {
+  max-width: 290px;
+}
+.field select,
+.field textarea {
+  font: inherit;
+  width: 100%;
+  color: #243d3b;
+  background: #fff;
+  padding: 11px 12px;
+  border: 1px solid #bac9c1;
+  border-radius: 5px;
+}
+.field textarea {
+  resize: vertical;
+  min-height: 95px;
+}
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #b57924;
+  outline-offset: 4px;
+}
+.field select:disabled,
+.field textarea:disabled {
+  background: #f4f6f1;
+}
+.record-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 30px;
+  margin: 20px 0;
+}
+.record-details > div {
+  min-width: 120px;
+  max-width: 100%;
+}
+.record-details dt {
+  font-size: 0.68rem;
+  color: #61716e;
+  margin-bottom: 5px;
+}
+.record-details dd {
+  font-size: 0.83rem;
+  margin: 0;
+  font-weight: 550;
+}
+.clinical-description,
+.cancellation-reason {
+  font-size: 0.83rem;
+  white-space: pre-wrap;
+}
+.billing-section {
+  border-top: 1px solid #e0e7dc;
+  padding-top: 22px;
+  margin-top: 25px;
+}
+.billing-section > p {
+  font-size: 0.82rem;
+}
+.billing-section .notice {
+  font-size: 0.8rem;
+}
+.table-scroll {
+  position: relative;
+  overflow-x: auto;
+  max-width: 100%;
+  padding-bottom: 5px;
+}
+.data-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 470px;
+  font-size: 0.76rem;
+}
+.data-table caption {
+  text-align: left;
+  font-size: 0.68rem;
+  color: #61716e;
+  padding-bottom: 10px;
+}
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 12px 8px;
+  border-bottom: 1px solid #e3e9df;
+  vertical-align: top;
+}
+.data-table thead {
+  background: #f7f9f3;
+}
+.data-table thead th {
+  font-size: 0.66rem;
+  color: #61716e;
+  font-weight: 650;
+}
+.data-table tbody th {
+  font-weight: 550;
+  min-width: 155px;
+}
+.money {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.data-table .money {
+  white-space: nowrap;
+}
+.amount-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+.amount-summary > span {
+  font-size: 0.8rem;
+  color: #61716e;
+}
+.amount-summary > strong {
+  font-size: 1.5rem;
+}
+.charge-total {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 17px;
+  margin: 24px 0;
+}
+.charge-total > strong {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  line-height: 1.3;
+  letter-spacing: -0.5px;
+}
+.charge-history > li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 15px 0;
+  border-bottom: 1px solid #e3e9df;
+}
+.charge-history > li small {
+  display: block;
+  color: #61716e;
+  font-size: 0.66rem;
+  margin-top: 4px;
+}
+.charge-history > li a,
+.charge-history > li strong {
+  font-size: 0.8rem;
+}
+.action-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+.danger {
+  color: #8b3930;
+}
+.button.danger {
+  border-color: #d4b3ad;
+  background: #fff7f5;
+}
+.cancellation-audit {
+  padding: 20px;
+  border: 1px solid #dfe6dc;
+  border-radius: 7px;
+  background: #f8faf5;
+}
+.cancellation-audit .button {
+  display: inline-block;
+  text-decoration: none;
+  font-size: 0.76rem;
+}
+.cancellation-reason {
+  border-left: 3px solid #a7b79b;
+  padding-left: 14px;
+  color: #4f6254;
+}
+.editable-item {
+  padding: 18px 0;
+  border-bottom: 1px solid #e3e9df;
+}
+.editable-item > div:first-child {
+  font-size: 0.85rem;
+}
+.editable-item small {
+  display: block;
+  color: #61716e;
+  font-size: 0.72rem;
+  margin-top: 4px;
+}
+.editable-item > form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 15px;
+}
+.editable-item > form .field {
+  margin-bottom: 0;
+  max-width: 250px;
+}
+.editable-item > form input {
+  max-width: 150px;
+}
+.editable-item > form .button {
+  margin-bottom: 1px;
+  font-size: 0.73rem;
+}
+.editable-item > button.text-button {
+  font-size: 0.72rem;
+  margin-top: 14px;
+}
+.remove-confirmation {
+  padding: 14px;
+  margin-top: 15px;
+  border: 1px solid #d4b3ad;
+  border-radius: 5px;
+}
+.remove-confirmation p {
+  font-size: 0.78rem;
+  margin-bottom: 10px;
+}
+.remove-confirmation .button,
+.remove-confirmation .text-button {
+  font-size: 0.73rem;
+  margin-right: 10px;
+}
+.add-item-form {
+  padding-top: 22px;
+}
+.add-item-form .field {
+  max-width: 420px;
+}
+.add-item-form .button {
+  font-size: 0.78rem;
+}
+@media (max-width: 1000px) {
+  .clinic-grid.operations-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .operations-grid .clinic-list {
+    max-height: 170px;
+  }
+}
+@media (max-width: 680px) {
+  .operations-panel {
+    padding: 20px 16px;
+  }
+  .clinic-navigation {
+    gap: 2px;
+  }
+  .clinic-navigation a {
+    font-size: 0.74rem;
+    padding: 7px 9px;
+  }
+  .operations-heading h2 {
+    font-size: 1.4rem;
+  }
+  .charge-list > li > div:last-child {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .charge-total {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

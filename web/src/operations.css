@@ -1,0 +1,317 @@
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.app-sidebar {
+  overflow-y: auto;
+}
+.app-sidebar nav {
+  display: grid;
+  gap: 7px;
+}
+.app-sidebar .nav-link {
+  line-height: 1.45;
+}
+.clinic-module-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+.clinic-switcher {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 100%;
+}
+.clinic-switcher label {
+  font-size: 0.8rem;
+  color: #61716e;
+}
+.clinic-switcher select {
+  max-width: min(410px, 100%);
+  padding: 10px 14px;
+  border: 1px solid #cbd7ca;
+  border-radius: 7px;
+  background: white;
+  color: #243d3b;
+  font: inherit;
+}
+.collection-toolbar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.collection-toolbar .field {
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
+  max-width: 420px;
+}
+.collection-toolbar .field select {
+  min-height: 46px;
+}
+.collection-table {
+  min-width: 600px;
+}
+.collection-table caption {
+  padding-bottom: 18px;
+}
+.collection-table th,
+.collection-table td {
+  padding: 17px 12px;
+}
+.collection-table tbody th > a {
+  font-size: 0.92rem;
+  font-weight: 650;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.collection-table th small {
+  display: block;
+  color: #61716e;
+  font-size: 0.7rem;
+  font-weight: 400;
+  margin-top: 5px;
+}
+.collection-table td:last-child {
+  text-align: right;
+}
+.collection-table .button {
+  font-size: 0.73rem;
+  white-space: nowrap;
+}
+.record-preview {
+  max-width: 330px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: #61716e;
+  margin: 8px 0 0;
+}
+.selected-record {
+  background: #f0f5e9;
+}
+.app-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border: 1px solid #d3dfd1;
+  border-radius: 12px;
+  background: #fff;
+  color: #243d3b;
+  box-shadow: 0 20px 90px #173f3933;
+}
+.app-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.app-dialog::backdrop {
+  background: #173f3940;
+}
+.dialog-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #dfe6dc;
+  flex-shrink: 0;
+  background: #f8faf5;
+}
+.dialog-heading h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.dialog-navigation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dialog-navigation .button {
+  font-size: 0.72rem;
+  min-height: 34px;
+  padding: 6px 10px;
+}
+.dialog-content {
+  padding: 24px;
+  overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+.record-drawer {
+  width: min(780px, calc(100vw - 48px));
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0 0 0 auto;
+  border-radius: 12px 0 0 12px;
+}
+.record-drawer .dialog-content {
+  flex: 1;
+}
+.record-drawer .operations-heading {
+  margin-top: 8px;
+}
+.form-actions {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e1e8dc;
+}
+.form-actions .button {
+  min-width: 160px;
+}
+.form-hint {
+  font-size: 0.8rem;
+}
+.checkbox-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.84rem;
+  margin-bottom: 18px;
+}
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: #245e50;
+}
+.dialog-content select,
+.dialog-content textarea {
+  font: inherit;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #bac9c1;
+  border-radius: 5px;
+  color: #243d3b;
+  background: white;
+}
+.dialog-content textarea {
+  resize: vertical;
+}
+.field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.field-heading label {
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+.field-heading .text-button {
+  font-size: 0.75rem;
+}
+.encounter-draft-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 105px auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+.encounter-draft-item .field {
+  margin: 0;
+}
+.encounter-draft-item > button {
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+}
+.draft-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  margin-top: 24px;
+  border: 1px solid #d3dfcb;
+  border-radius: 8px;
+  background: #f3f7ee;
+}
+.draft-total > span {
+  font-size: 0.86rem;
+}
+.draft-total > strong {
+  font-size: 1.6rem;
+}
+@media (max-width: 900px) {
+  .app-sidebar {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .app-sidebar nav {
+    display: flex;
+    flex-basis: 100%;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .app-sidebar nav .nav-link {
+    font-size: 0.73rem;
+    padding: 7px 10px;
+  }
+}
+@media (max-width: 680px) {
+  .clinic-module-context {
+    gap: 12px;
+  }
+  .clinic-switcher {
+    width: 100%;
+  }
+  .clinic-switcher select {
+    flex: 1;
+    min-width: 0;
+  }
+  .collection-toolbar {
+    align-items: stretch;
+  }
+  .collection-toolbar .field {
+    max-width: none;
+  }
+  .record-drawer {
+    width: 100%;
+    border-radius: 0;
+  }
+  .dialog-heading,
+  .dialog-content {
+    padding: 18px;
+  }
+  .encounter-draft-item {
+    grid-template-columns: minmax(0, 1fr) 85px;
+  }
+  .encounter-draft-item > button {
+    grid-column: 1 / -1;
+    justify-self: start;
+    margin: 0;
+  }
+  .app-dialog .field-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+.operations-heading h1 {
+  font-size: 1.8rem;
+  margin-bottom: 8px;
+  letter-spacing: -0.7px;
+}
