@@ -94,7 +94,7 @@ def scope():
         }
         serializer = PaymentNotificationSerializer(data=data)
         serializer.is_valid(raise_exception=True)
-        return accept_event(serializer.validated_data)[0]
+        return accept_event(serializer.to_notification())[0]
 
     return SimpleNamespace(
         clinic=clinic,

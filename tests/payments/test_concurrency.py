@@ -7,9 +7,10 @@ from django.db import close_old_connections, connections
 from apps.charges.exceptions import ChargeConflict
 from apps.charges.models import Charge
 from apps.charges.services import cancel_charge
+from apps.payments.exceptions import PaymentConflict
 from apps.payments.models import Payment, PaymentEvent
 from apps.payments.serializers import PaymentNotificationSerializer
-from apps.payments.services import PaymentConflict, accept_event, reconcile_event
+from apps.payments.services import accept_event, reconcile_event
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -115,7 +116,8 @@ def test_concurrent_event_receipts_have_one_identity(scope, conflict):
             return "CONFLICT"
 
     results = race(
-        lambda: accept(first.validated_data), lambda: accept(second.validated_data)
+        lambda: accept(first.to_notification()),
+        lambda: accept(second.to_notification()),
     )
     assert PaymentEvent.objects.count() == 1
     assert results.count(True) == 1

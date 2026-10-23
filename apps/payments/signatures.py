@@ -4,15 +4,11 @@ import re
 import time
 
 from django.conf import settings
-from rest_framework.exceptions import APIException, PermissionDenied
+
+from apps.payments.exceptions import InvalidWebhookSignature, WebhookUnavailable
 
 MAX_BODY_BYTES = 65536
 SIGNATURE_TOLERANCE_SECONDS = 300
-
-
-class WebhookUnavailable(APIException):
-    status_code = 503
-    default_detail = "The simulated payment webhook is not configured."
 
 
 def webhook_secret() -> bytes:
@@ -38,11 +34,11 @@ def verify_signature(body: bytes, timestamp: str, signature: str) -> None:
     if not re.fullmatch(r"[0-9]{1,12}", timestamp) or not re.fullmatch(
         r"sha256=[0-9a-f]{64}", signature
     ):
-        raise PermissionDenied("Invalid webhook signature.")
+        raise InvalidWebhookSignature()
     if abs(time.time() - int(timestamp)) > SIGNATURE_TOLERANCE_SECONDS:
-        raise PermissionDenied("Invalid webhook signature.")
+        raise InvalidWebhookSignature()
     expected = hmac.new(
         secret, timestamp.encode() + b"." + body, hashlib.sha256
     ).hexdigest()
     if not hmac.compare_digest(expected, signature.removeprefix("sha256=")):
-        raise PermissionDenied("Invalid webhook signature.")
+        raise InvalidWebhookSignature()

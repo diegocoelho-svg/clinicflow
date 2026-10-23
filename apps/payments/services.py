@@ -1,48 +1,34 @@
-import hashlib
-import json
-from datetime import UTC
-
-from django.db import connection, transaction
+from django.db import transaction
 from django.utils import timezone
-from rest_framework.exceptions import APIException, ValidationError
 
 from apps.charges.models import Charge
 from apps.clinics.models import Clinic
-from apps.encounters.models import Encounter
+from apps.core.exceptions import BusinessRuleViolation
+from apps.encounters.locking import lock_encounter
+from apps.payments.exceptions import PaymentConflict
+from apps.payments.locking import lock_payment_reference
 from apps.payments.models import Payment, PaymentEvent
+from apps.payments.types import PaymentNotification
 
 
-class PaymentConflict(APIException):
-    status_code = 409
-    default_detail = "This event ID has already been used for different payment data."
-
-
-def accept_event(data: dict) -> tuple[PaymentEvent, bool]:
-    canonical = {
-        **data,
-        "event_id": str(data["event_id"]),
-        "amount": format(data["amount"], ".2f"),
-        "paid_at": data["paid_at"].astimezone(UTC).isoformat(),
-    }
-    digest = hashlib.sha256(
-        json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    previous = PaymentEvent.objects.filter(event_id=data["event_id"]).first()
+def accept_event(data: PaymentNotification) -> tuple[PaymentEvent, bool]:
+    digest = data.fingerprint()
+    previous = PaymentEvent.objects.filter(event_id=data.event_id).first()
     if previous is not None:
         if previous.payload_hash != digest:
             raise PaymentConflict()
         return previous, False
-    if not Clinic.objects.filter(pk=data["clinic_id"]).exists():
-        raise ValidationError({"clinic_id": ["Unknown clinic reference."]})
+    if not Clinic.objects.filter(pk=data.clinic_id).exists():
+        raise BusinessRuleViolation({"clinic_id": ["Unknown clinic reference."]})
     event, created = PaymentEvent.objects.get_or_create(
-        event_id=data["event_id"],
+        event_id=data.event_id,
         defaults={
-            "clinic_id": data["clinic_id"],
-            "charge_reference": data["charge_id"],
-            "payment_reference": data["payment_reference"],
-            "amount": data["amount"],
-            "currency": data["currency"],
-            "paid_at": data["paid_at"],
+            "clinic_id": data.clinic_id,
+            "charge_reference": data.charge_id,
+            "payment_reference": data.payment_reference,
+            "amount": data.amount,
+            "currency": data.currency,
+            "paid_at": data.paid_at,
             "payload_hash": digest,
         },
     )
@@ -51,9 +37,14 @@ def accept_event(data: dict) -> tuple[PaymentEvent, bool]:
     return event, created
 
 
-def _finish(event: PaymentEvent, *, payment=None, discrepancy="") -> PaymentEvent:
+def _finish(
+    event: PaymentEvent,
+    *,
+    payment: Payment | None = None,
+    discrepancy: PaymentEvent.Discrepancy | None = None,
+) -> PaymentEvent:
     event.payment = payment
-    event.discrepancy_code = discrepancy
+    event.discrepancy_code = discrepancy or ""
     event.status = (
         PaymentEvent.Status.DISCREPANCY
         if discrepancy
@@ -67,29 +58,19 @@ def _finish(event: PaymentEvent, *, payment=None, discrepancy="") -> PaymentEven
 def reconcile_event(event_pk: int) -> PaymentEvent:
     with transaction.atomic():
         event = PaymentEvent.objects.get(pk=event_pk)
-        # Serialize one provider payment identity even across different charges.
-        # Hash collisions only serialize extra work; they cannot join identities.
-        lock_key = int.from_bytes(
-            hashlib.sha256(
-                ("clinicflow.simulated-payment:" + event.payment_reference).encode()
-            ).digest()[:8],
-            "big",
-            signed=True,
-        )
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [lock_key])
+        lock_payment_reference(event.payment_reference)
 
         charge = Charge.objects.filter(
             pk=event.charge_reference, clinic_id=event.clinic_id
         ).first()
         if charge is not None:
             # Cancellation and item writes use this same parent lock.
-            Encounter.objects.select_for_update().get(pk=charge.encounter_id)
+            lock_encounter(charge.encounter_id, clinic_id=event.clinic_id)
         event = PaymentEvent.objects.select_for_update().get(pk=event_pk)
         if event.status != PaymentEvent.Status.RECEIVED:
             return event
         if charge is None:
-            return _finish(event, discrepancy="CHARGE_NOT_FOUND")
+            return _finish(event, discrepancy=PaymentEvent.Discrepancy.CHARGE_NOT_FOUND)
         charge = Charge.objects.get(pk=charge.pk)
         existing = Payment.objects.filter(
             payment_reference=event.payment_reference
@@ -103,13 +84,19 @@ def reconcile_event(event_pk: int) -> PaymentEvent:
                 and existing.paid_at == event.paid_at
             ):
                 return _finish(event, payment=existing)
-            return _finish(event, discrepancy="PAYMENT_REFERENCE_CONFLICT")
+            return _finish(
+                event, discrepancy=PaymentEvent.Discrepancy.PAYMENT_REFERENCE_CONFLICT
+            )
         if charge.status != Charge.Status.PENDING:
-            return _finish(event, discrepancy="CHARGE_NOT_PENDING")
+            return _finish(
+                event, discrepancy=PaymentEvent.Discrepancy.CHARGE_NOT_PENDING
+            )
         if event.currency != charge.currency:
-            return _finish(event, discrepancy="CURRENCY_MISMATCH")
+            return _finish(
+                event, discrepancy=PaymentEvent.Discrepancy.CURRENCY_MISMATCH
+            )
         if event.amount != charge.amount:
-            return _finish(event, discrepancy="AMOUNT_MISMATCH")
+            return _finish(event, discrepancy=PaymentEvent.Discrepancy.AMOUNT_MISMATCH)
         payment = Payment.objects.create(
             clinic_id=event.clinic_id,
             charge=charge,

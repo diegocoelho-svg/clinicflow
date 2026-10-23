@@ -90,6 +90,12 @@ def test_configuration_is_fail_closed(scope, post_notification, settings, secret
         {"event_id": 0},
         {"payment_reference": 123},
         {"payment_reference": " trimmed "},
+        {"payment_reference": "provider:identity\n"},
+        {"payment_reference": "a" * 128 + "\n"},
+        {"payment_reference": "a" * 129},
+        {"currency": "BRL\n"},
+        {"currency": " BRL"},
+        {"currency": "BRL "},
         {"paid_at": "bad-date"},
         {"payment_reference": " "},
         {"status": "RECONCILED"},
@@ -168,3 +174,20 @@ def test_changed_signed_payload_cannot_reuse_another_event_id(scope, post_notifi
     response = post_notification({**scope.payload, "event_id": str(event.event_id)})
     assert response.status_code == 409
     assert PaymentEvent.objects.count() == 1
+
+
+def test_maximum_provider_reference_is_accepted(scope, post_notification):
+    response = post_notification({**scope.payload, "payment_reference": "a" * 128})
+    assert response.status_code == 202
+    assert PaymentEvent.objects.get().payment_reference == "a" * 128
+
+
+def test_equivalent_timestamp_offset_preserves_event_identity(scope, post_notification):
+    from datetime import datetime, timedelta, timezone
+
+    first = post_notification(scope.payload)
+    paid_at = datetime.fromisoformat(scope.payload["paid_at"])
+    equivalent = paid_at.astimezone(timezone(timedelta(hours=-3))).isoformat()
+    replay = post_notification({**scope.payload, "paid_at": equivalent})
+    assert replay.status_code == 200
+    assert replay.data["id"] == first.data["id"]

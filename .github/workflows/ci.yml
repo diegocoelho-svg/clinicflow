@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, diegocoelho-svg/clinicflow-charges]
+    branches: [main, diegocoelho-svg/clinicflow-charges, diegocoelho-svg/clinicflow-payments]
   push:
     branches: [main]
   workflow_dispatch:

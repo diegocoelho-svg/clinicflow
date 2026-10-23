@@ -12,6 +12,16 @@ class PaymentEvent(models.Model):
         RECONCILED = "RECONCILED", "Reconciled"
         DISCREPANCY = "DISCREPANCY", "Discrepancy"
 
+    class Discrepancy(models.TextChoices):
+        CHARGE_NOT_FOUND = "CHARGE_NOT_FOUND", "Charge not found"
+        CHARGE_NOT_PENDING = "CHARGE_NOT_PENDING", "Charge not pending"
+        CURRENCY_MISMATCH = "CURRENCY_MISMATCH", "Currency mismatch"
+        AMOUNT_MISMATCH = "AMOUNT_MISMATCH", "Amount mismatch"
+        PAYMENT_REFERENCE_CONFLICT = (
+            "PAYMENT_REFERENCE_CONFLICT",
+            "Payment reference conflict",
+        )
+
     event_id = models.UUIDField(unique=True)
     clinic = models.ForeignKey(Clinic, on_delete=models.PROTECT)
     charge_reference = models.PositiveBigIntegerField()
@@ -23,7 +33,9 @@ class PaymentEvent(models.Model):
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.RECEIVED
     )
-    discrepancy_code = models.CharField(max_length=40, blank=True)
+    discrepancy_code = models.CharField(
+        max_length=40, choices=Discrepancy.choices, blank=True
+    )
     payment = models.ForeignKey(
         "Payment",
         on_delete=models.PROTECT,
@@ -77,7 +89,7 @@ class PaymentEvent(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.event_id)
 
 
@@ -109,5 +121,5 @@ class Payment(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Payment {self.pk} for charge {self.charge_id}"

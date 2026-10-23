@@ -1,6 +1,7 @@
 import time
+from typing import Any
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from apps.payments.models import PaymentEvent
 from apps.payments.services import reconcile_event
@@ -9,11 +10,11 @@ from apps.payments.services import reconcile_event
 class Command(BaseCommand):
     help = "Reconcile persisted simulated-payment events in a separate process."
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument("--limit", type=int, default=100)
         parser.add_argument("--watch", action="store_true")
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         if not 1 <= options["limit"] <= 1000:
             raise CommandError("--limit must be between 1 and 1000.")
         try:

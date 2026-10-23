@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from http.client import IncompleteRead
 from io import BytesIO, StringIO
 from urllib.error import URLError
 
@@ -76,3 +77,31 @@ def test_watch_worker_stops_cleanly(scope, monkeypatch):
     call_command("reconcile_payments", watch=True, stdout=output)
     assert "stopped" in output.getvalue()
     assert not PaymentEvent.objects.filter(status="RECEIVED").exists()
+
+
+@pytest.mark.parametrize("failure", ["truncated", "reset", "invalid_json"])
+def test_simulator_preserves_event_identity_after_response_read_failure(
+    scope, monkeypatch, settings, failure
+):
+    calls = []
+
+    class FailedReceipt(BytesIO):
+        def read(self, *args, **kwargs):
+            if failure == "truncated":
+                raise IncompleteRead(b"{", 10)
+            if failure == "reset":
+                raise ConnectionResetError("Synthetic response loss")
+            return b"<html>unreadable acknowledgement</html>"
+
+    def uncertain(request, **kwargs):
+        calls.append(request)
+        return FailedReceipt()
+
+    monkeypatch.setattr(simulate_payment, "urlopen", uncertain)
+    with pytest.raises(CommandError) as error:
+        call_command("simulate_payment", scope.charge.pk)
+    assert len(calls) == 1
+    event_id = json.loads(calls[0].data)["event_id"]
+    assert f"Check event {event_id}" in str(error.value)
+    assert "no second event was sent" in str(error.value)
+    assert settings.SIMULATED_PAYMENT_WEBHOOK_SECRET not in str(error.value)
