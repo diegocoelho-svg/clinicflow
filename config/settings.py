@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "apps.encounters.apps.EncountersConfig",
     "apps.procedures.apps.ProceduresConfig",
     "apps.charges.apps.ChargesConfig",
+    "apps.payments.apps.PaymentsConfig",
     "apps.core.apps.CoreConfig",
 ]
 
@@ -78,3 +79,7 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+SIMULATED_PAYMENT_WEBHOOK_SECRET = os.environ.get(
+    "SIMULATED_PAYMENT_WEBHOOK_SECRET", ""
+)

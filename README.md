@@ -59,7 +59,8 @@ Unchecked items are planned work; each delivery updates the checklist.
 - [x] Apply clinic isolation to patients, including requests under a different clinic URL.
 - [x] Apply clinic isolation to encounters, including requests under a different clinic URL.
 - [x] Apply clinic isolation to charge issuance, listing, retrieval, and cancellation.
-- [ ] Apply clinic isolation to payments and financial reports as those resources are implemented.
+- [x] Apply clinic isolation to payment and event read APIs.
+- [ ] Apply clinic isolation to financial reports as they are implemented.
 
 **Patients and encounters**
 
@@ -69,7 +70,7 @@ Unchecked items are planned work; each delivery updates the checklist.
 - [x] Link procedures to encounters with positive quantities, unique procedure items, and historical name/price snapshots.
 - [x] Reject encounter patient assignments that combine resources from different clinics.
 - [x] Reject cross-clinic references in charge endpoints.
-- [ ] Reject cross-clinic references in payments and other future resources.
+- [x] Reject cross-clinic payment reconciliation references.
 
 **Charges and payments**
 
@@ -84,17 +85,17 @@ Unchecked items are planned work; each delivery updates the checklist.
 - [x] Calculate encounter item totals with `Decimal` using the stored unit price.
 - [x] Calculate charge totals with `Decimal` and persist them as PostgreSQL `NUMERIC(22,2)`.
 - [x] Define and enforce charge issuance and cancellation state transitions.
-- [ ] Implement payment state transitions and reconciliation.
-- [ ] Mark a charge `PAID` only after its payment is successfully reconciled.
-- [ ] Record discrepancies for investigation instead of silently marking inconsistent payments as successful.
+- [x] Implement payment state transitions and reconciliation.
+- [x] Mark a charge `PAID` only after its payment is successfully reconciled.
+- [x] Record discrepancies for investigation instead of silently marking inconsistent payments as successful.
 - [ ] Expose clinic-scoped financial indicators.
 
 **Events and resilience**
 
-- [ ] Implement a simulated payment provider and verify webhook signatures.
-- [ ] Persist incoming events and prevent duplicate payment creation.
+- [x] Implement a simulated payment provider and verify webhook signatures.
+- [x] Persist incoming events and prevent duplicate payment creation.
 - [ ] Publish events through the local Google Cloud Pub/Sub Emulator.
-- [ ] Run a separate Python consumer and make reconciliation idempotent.
+- [x] Run a separate Python consumer and make reconciliation idempotent.
 - [ ] Handle concurrent processing and out-of-order events without corrupting financial state.
 - [ ] Add retries with backoff and a dead-letter path for persistent failures.
 - [ ] Evaluate and implement a Transactional Outbox when database writes and event publication must remain consistent.
@@ -122,7 +123,7 @@ Unchecked items are planned work; each delivery updates the checklist.
 | Payment event | Provider confirmation, processing status, and duplicate protection |
 
 Charge issuance and cancellation are specified in [the charge contract](docs/charges.md).
-Payment event contracts, refunds, and payment discrepancy policies remain planned work.
+Simulated payments and discrepancy rules are specified in [the payment contract](docs/payments.md). Refunds and discrepancy-resolution workflows remain planned work.
 
 ## Current scope
 
@@ -134,8 +135,9 @@ completed encounter creation/listing/retrieval/updates, a clinic procedure catal
 with BRL prices, owner-only catalog management, encounter items with historical
 prices and quantities, idempotent charge issuance and read endpoints, owner-only
 charge cancellation, Pytest, Ruff, and GitHub Actions.
-Membership management, payment integrations, the Pub/Sub
-emulator, and its consumer will be added in subsequent development steps.
+Signed simulated-payment ingestion, clinic-scoped payment/event reads and a separate
+database-backed reconciliation worker are also implemented. Membership management,
+real payment providers, Pub/Sub transport, an outbox and dead-letter handling remain planned.
 
 All patient data and payment integrations will be fictional. The project runs
 locally and does not require cloud resources or paid services.
@@ -747,15 +749,17 @@ and deletion. Cancelling preserves its amount and snapshots, unlocks the encount
 items, and allows a new issuance with a new UUID. An old UUID always identifies
 its original charge, including after cancellation and reissuance.
 
-There is no endpoint to assign amounts or mark a charge paid. Payment simulation,
-webhooks, reconciliation, discounts, installments, and refunds remain later steps.
+Clients cannot assign charge amounts or mark charges paid directly. Signed simulated
+payment events are reconciled by a separate worker; see [payments](docs/payments.md).
+Discounts, installments and refunds remain planned.
 
 See [the charge contract](docs/charges.md) for data types, statuses, errors,
 transaction rules, and an Insomnia validation sequence.
 
 ## Continuous integration
 
-The [CI workflow](.github/workflows/ci.yml) runs on pull requests targeting `main`,
+The [CI workflow](.github/workflows/ci.yml) runs on pull requests targeting `main` or
+the charges dependency branch,
 pushes to `main`, and manual dispatches. It builds the existing Docker image and
 starts the API and PostgreSQL through the same `compose.yaml` used locally. The
 startup command applies migrations to a fresh database; Compose waits for both
