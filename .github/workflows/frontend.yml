@@ -2,7 +2,6 @@ name: Frontend CI
 
 on:
   pull_request:
-    branches: [main, diegocoelho-svg/clinicflow-payments]
     paths: ['web/**', '.github/workflows/frontend.yml']
   push:
     branches: [main]
