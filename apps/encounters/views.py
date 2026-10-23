@@ -1,13 +1,14 @@
 from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
-from rest_framework import mixins, viewsets
+from rest_framework import mixins
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 
-from apps.clinics.models import Clinic
+from apps.clinics.access import ClinicScopedViewSet
 from apps.encounters.models import Encounter, EncounterItem
 from apps.encounters.serializers import EncounterItemSerializer, EncounterSerializer
+from apps.encounters.services import delete_encounter_item
 
 
 class EncounterViewSet(
@@ -15,20 +16,12 @@ class EncounterViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
-    viewsets.GenericViewSet,
+    ClinicScopedViewSet,
 ):
     serializer_class = EncounterSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser]
     http_method_names = ["get", "post", "patch", "head", "options"]
-    clinic: Clinic
-
-    def initial(self, request: Request, *args, **kwargs) -> None:
-        super().initial(request, *args, **kwargs)
-        self.clinic = get_object_or_404(
-            Clinic.objects.filter(memberships__user=request.user),
-            pk=self.kwargs["clinic_id"],
-        )
 
     def get_queryset(self) -> QuerySet[Encounter]:
         return Encounter.objects.filter(clinic=self.clinic)
@@ -48,7 +41,7 @@ class EncounterItemViewSet(
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
     mixins.DestroyModelMixin,
-    viewsets.GenericViewSet,
+    ClinicScopedViewSet,
 ):
     serializer_class = EncounterItemSerializer
     permission_classes = [IsAuthenticated]
@@ -59,8 +52,8 @@ class EncounterItemViewSet(
     def initial(self, request: Request, *args, **kwargs) -> None:
         super().initial(request, *args, **kwargs)
         self.encounter = get_object_or_404(
-            Encounter.objects.filter(clinic__memberships__user=request.user),
-            clinic_id=self.kwargs["clinic_id"],
+            Encounter,
+            clinic=self.clinic,
             pk=self.kwargs["encounter_id"],
         )
 
@@ -74,3 +67,6 @@ class EncounterItemViewSet(
 
     def perform_create(self, serializer: EncounterItemSerializer) -> None:
         serializer.save(encounter=self.encounter)
+
+    def perform_destroy(self, instance: EncounterItem) -> None:
+        delete_encounter_item(encounter_id=self.encounter.pk, item_id=instance.pk)

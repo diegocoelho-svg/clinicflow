@@ -9,11 +9,11 @@ from django.db import IntegrityError, connection, connections, transaction
 from django.db.models.deletion import ProtectedError
 from django.urls import reverse
 from django.utils import timezone
-from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from apps.clinics.models import Clinic, ClinicMembership
+from apps.core.exceptions import BusinessRuleViolation
 from apps.encounters.models import Encounter, EncounterItem
 from apps.encounters.serializers import EncounterItemSerializer
 from apps.patients.models import Patient
@@ -617,7 +617,7 @@ def test_procedure_is_rechecked_after_validation(
         Procedure.objects.filter(pk=procedure.pk).update(is_active=False)
     else:
         procedure.delete()
-    with pytest.raises(serializers.ValidationError):
+    with pytest.raises(BusinessRuleViolation):
         serializer.save(encounter=encounter)
     assert not EncounterItem.objects.exists()
 

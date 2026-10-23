@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import serializers
 
 from apps.encounters.models import Encounter, EncounterItem
+from apps.encounters.services import create_encounter_item, update_encounter_item
 from apps.patients.models import Patient
 from apps.procedures.models import Procedure
 
@@ -89,40 +89,15 @@ class EncounterItemSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data: dict) -> EncounterItem:
-        encounter = validated_data["encounter"]
-        procedure_id = validated_data["procedure"].pk
-        try:
-            with transaction.atomic():
-                procedure = (
-                    Procedure.objects.select_for_update()
-                    .filter(pk=procedure_id, clinic_id=encounter.clinic_id)
-                    .first()
-                )
-                if procedure is None or not procedure.is_active:
-                    raise serializers.ValidationError(
-                        {
-                            "procedure": [
-                                "An active procedure from this clinic is required."
-                            ]
-                        }
-                    )
-                return EncounterItem.objects.create(
-                    encounter=encounter,
-                    procedure=procedure,
-                    procedure_name=procedure.name,
-                    unit_price=procedure.unit_price,
-                    quantity=validated_data.get("quantity", 1),
-                )
-        except IntegrityError as error:
-            constraint = getattr(
-                getattr(error.__cause__, "diag", None), "constraint_name", None
-            )
-            if constraint == "unique_encounter_procedure_item":
-                raise serializers.ValidationError(
-                    {
-                        "procedure": [
-                            "This procedure is already present in the encounter."
-                        ]
-                    }
-                ) from error
-            raise
+        return create_encounter_item(
+            encounter_id=validated_data["encounter"].pk,
+            procedure_id=validated_data["procedure"].pk,
+            quantity=validated_data.get("quantity", 1),
+        )
+
+    def update(self, instance: EncounterItem, validated_data: dict) -> EncounterItem:
+        return update_encounter_item(
+            encounter_id=instance.encounter_id,
+            item_id=instance.pk,
+            quantity=validated_data.get("quantity"),
+        )
