@@ -10,10 +10,19 @@ export function decimalAmount(value: bigint): string {
   return `${value / 100n}.${String(value % 100n).padStart(2, '0')}`;
 }
 
-export function money(value: string): string {
+export function money(value: string, currencyCode = 'BRL'): string {
   const minor = minorUnits(value);
-  if (minor === null) return 'Valor indisponível';
-  return currency
+  if (minor === null || !/^[A-Z]{3}$/.test(currencyCode)) return 'Valor indisponível';
+  const formatter =
+    currencyCode === 'BRL'
+      ? currency
+      : new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: currencyCode,
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+  return formatter
     .formatToParts(minor / 100n)
     .map((part) => (part.type === 'fraction' ? String(minor % 100n).padStart(2, '0') : part.value))
     .join('');

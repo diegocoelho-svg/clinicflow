@@ -413,3 +413,38 @@ web/src/test/App.test.tsx
 web/src/test/review-regressions.test.tsx
 web/src/test/setup.ts
 ```
+
+## Integrated main and payment workspace — 2026-10-26
+
+The local main checkout was fast-forwarded to `fceaa00`. The existing
+`clinicflow-frontend` Compose project and database volume were preserved.
+Only synthetic records were added in **QA fluxo integrado 26-10** (clinic #10):
+patient #8, procedure #9 at BRL 125.50, encounters #12–14 and charges #11–13.
+
+Real HTTP calls through Vite's proxy created the patient, procedure, encounters,
+items and charges, then submitted signed receipts. All three charges initially
+remained pending. A separate one-shot process reconciled only QA events #5–7:
+- Event #5 reconciled charge #11, which became paid.
+- Event #6 recorded an amount mismatch; charge #12 remained pending.
+- Event #7 recorded a currency mismatch (USD); charge #12 remained pending.
+- Event #8 remained received, and charge #13 remained pending.
+
+The Orca browser showed the three encounters before and after reconciliation:
+only encounter #12 changed to paid. Existing clinics and their records were
+left intact. The feature preview reuses the main API and database and binds only
+the frontend to the payment-workspace worktree.
+
+Frontend validation passed with **85 tests in six files** (23 new payment cases),
+TypeScript/production build and Prettier. Tests cover entering the area before
+clinic selection, GET authentication, exact currency amounts, source-event links,
+paid-charge links, status/search persistence, in-drawer refresh after reconciliation,
+all five discrepancy reasons plus unknown codes, empty/error recovery, unavailable
+IDs and clinic access/payload isolation.
+
+Real Orca browser QA opened payment #3 and followed its source event #5. The
+event list contained one reconciled, two discrepancy and one received record.
+Filtering discrepancies showed only events #6 and #7. Event #7 displayed
+**US$ 125.50** and the currency-mismatch explanation; refreshing and closing the
+drawer retained the discrepancy filter and its two records. A local screenshot
+was inspected. At the tested 975 CSS-pixel viewport, page and dialog scroll widths
+matched their client widths, with no horizontal overflow.

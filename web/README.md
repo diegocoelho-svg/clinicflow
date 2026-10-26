@@ -488,3 +488,33 @@ refreshes. **Descartar rascunhos e voltar** explicitly discards the remaining dr
 The Docker frontend enables Vite polling with **CLINICFLOW_WATCH_POLLING=true**
 to observe host edits on Docker Desktop for Windows. This option applies only
 to the development server; it does not change the production build.
+
+## Payments and receipt discrepancies
+
+Open **Pagamentos** from the persistent sidebar or the selected clinic.
+**Pagamentos conciliados** lists confirmed payments; **Eventos e divergências**
+shows receipts awaiting reconciliation, reconciled receipts and discrepancies.
+Search by payment reference or an exact charge number, then filter event status.
+Search and status remain in the URL when records are opened, closed or refreshed.
+
+Records open in the existing drawer with previous/next navigation and an
+**Atualizar registro** action. Payment details link to their charge and source
+receipt; reconciled receipts link back to the payment. Paid charge details also
+offer a direct link to the matching payment list. Breadcrumbs and browser history
+retain the list context.
+
+The workspace uses the existing clinic-scoped GET payment/event APIs. It does
+not mark charges paid or modify reconciliation results. Discrepancies explain
+the recorded reason; a missing charge is shown without an invalid charge link.
+The amount is formatted exactly in the received currency, including events
+whose currency differs from BRL. Manual discrepancy resolution remains planned.
+
+Routes:
+- `/clinicas/:clinicId/pagamentos`
+- `/clinicas/:clinicId/pagamentos/:paymentId`
+- `/clinicas/:clinicId/pagamentos/eventos`
+- `/clinicas/:clinicId/pagamentos/eventos/:eventId`
+
+Lists use the current unpaginated API and client-side filters, like the existing
+encounter workspace. Server pagination should be introduced with the API when
+the local dataset grows.
