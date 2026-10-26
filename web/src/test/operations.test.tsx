@@ -296,7 +296,7 @@ describe('persistent workspace navigation', () => {
     const labelsBefore = within(navigation)
       .getAllByRole('link')
       .map((link) => link.textContent);
-    expect(labelsBefore).toHaveLength(5);
+    expect(labelsBefore).toHaveLength(6);
     await ui.click(within(navigation).getByRole('link', { name: label }));
     expect(router.state.location.search).toBe(`?area=${path}`);
     expect(screen.getByRole('heading', { level: 1, name: label })).toBeInTheDocument();

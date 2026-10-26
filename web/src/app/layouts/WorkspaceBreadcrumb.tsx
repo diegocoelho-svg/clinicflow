@@ -20,7 +20,15 @@ export function WorkspaceBreadcrumb() {
   if (section) {
     crumbs.push({
       label: section.label,
-      to: clinicId ? `/clinicas/${clinicId}/${section.path}` : `/clinicas?area=${section.path}`,
+      to: clinicId
+        ? `/clinicas/${clinicId}/${section.path}${section.path === 'pagamentos' ? '?' + searchParams.toString() : ''}`
+        : `/clinicas?area=${section.path}`,
+    });
+  }
+  if (section?.path === 'pagamentos' && clinicRoute?.params['*']?.split('/')[1] === 'eventos') {
+    crumbs.push({
+      label: 'Eventos e divergências',
+      to: `/clinicas/${clinicId}/pagamentos/eventos?${searchParams}`,
     });
   }
   if (params?.encounterId) {
@@ -32,6 +40,17 @@ export function WorkspaceBreadcrumb() {
     crumbs.push({
       label: `Cobrança #${params.chargeId}`,
       to: `/clinicas/${clinicId}/cobrancas/${params.chargeId}`,
+    });
+  }
+  if (params?.paymentId) {
+    crumbs.push({
+      label: `Pagamento #${params.paymentId}`,
+      to: `/clinicas/${clinicId}/pagamentos/${params.paymentId}`,
+    });
+  } else if (params?.eventId) {
+    crumbs.push({
+      label: `Evento #${params.eventId}`,
+      to: `/clinicas/${clinicId}/pagamentos/eventos/${params.eventId}`,
     });
   }
   return (

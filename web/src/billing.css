@@ -458,3 +458,17 @@ textarea:focus-visible {
     flex-direction: column;
   }
 }
+
+.payment-tabs {
+  margin: 18px 0;
+}
+.payment-list-reference {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.payment-detail-reference {
+  overflow-wrap: anywhere;
+}

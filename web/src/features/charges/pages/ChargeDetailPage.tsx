@@ -74,6 +74,14 @@ function ChargeDetail({ id }: { id: number }) {
             <strong className="money">{money(charge.amount)}</strong>
             <ChargeStatusBadge status={charge.status} />
           </div>
+          {charge.status === 'PAID' && (
+            <Link
+              className="button secondary"
+              to={`/clinicas/${clinic.id}/pagamentos?busca=${charge.id}`}
+            >
+              Ver pagamento conciliado
+            </Link>
+          )}
           {charge.status === 'NO_PAYMENT_REQUIRED' && (
             <p className="muted">Esta cobrança tem valor zero. Não há pagamento a receber.</p>
           )}

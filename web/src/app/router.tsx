@@ -11,6 +11,8 @@ import { EncounterIndexPage } from '../features/encounters/pages/EncounterIndexP
 import { EncounterBillingPage } from '../features/encounters/pages/EncounterBillingPage';
 import { ChargeIndexPage } from '../features/charges/pages/ChargeIndexPage';
 import { ChargeDetailPage } from '../features/charges/pages/ChargeDetailPage';
+import { PaymentsPage } from '../features/payments/PaymentsPage';
+import { PaymentDetailPage, PaymentEventDetailPage } from '../features/payments/PaymentDetailPage';
 import { PatientsPage } from '../features/patients/PatientsPage';
 import { ProceduresPage } from '../features/procedures/ProceduresPage';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
@@ -72,6 +74,28 @@ export const routes: RouteObject[] = [
                         path: 'procedimentos',
                         Component: ProceduresPage,
                         handle: { title: 'Procedimentos e preços' },
+                      },
+                      {
+                        path: 'pagamentos',
+                        Component: PaymentsPage,
+                        handle: { title: 'Pagamentos' },
+                        children: [
+                          {
+                            path: ':paymentId',
+                            Component: PaymentDetailPage,
+                            handle: { title: 'Pagamento conciliado' },
+                          },
+                          {
+                            path: 'eventos',
+                            element: <></>,
+                            handle: { title: 'Eventos e divergências' },
+                          },
+                          {
+                            path: 'eventos/:eventId',
+                            Component: PaymentEventDetailPage,
+                            handle: { title: 'Recebimento' },
+                          },
+                        ],
                       },
                       {
                         path: 'cobrancas',

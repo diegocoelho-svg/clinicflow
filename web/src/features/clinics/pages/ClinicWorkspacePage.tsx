@@ -14,6 +14,9 @@ export function ClinicWorkspacePage() {
         <Link className="button secondary" to={'/clinicas/' + clinic.id + '/cobrancas'}>
           Ver cobranças
         </Link>
+        <Link className="button secondary" to={'/clinicas/' + clinic.id + '/pagamentos'}>
+          Ver pagamentos
+        </Link>
       </div>
     </div>
   );
